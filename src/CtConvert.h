@@ -57,9 +57,25 @@ static void CtToVciObj(const CtFrame *f, VCI_CAN_OBJ *o)
     o->ExternFlag = f->ext ? 1 : 0;
     o->RemoteFlag = (f->kind == CT_FRAME_REMOTE) ? 1 : 0;
     o->DataLen    = (BYTE)(f->len > 8 ? 8 : f->len);
-    /* 纳秒 → 0.1 毫秒 */
-    o->TimeStamp  = (DWORD)(f->ts_ns / 100000ULL);
-    o->TimeFlag   = f->ts_ns ? 1 : 0;
+    /*
+     ★ 时间戳绝不给 0。
+
+       ZCANPRO 遇到 TimeFlag=0 就显示 0.000000，列表里会看到
+       "23.900300 / 23.900300 / 0.000000" 这种一格一个零的怪现象。
+
+       计数器从 0 开始的第一帧、或某个后端没带时间戳时都会算出 0。
+       与其让上层看到 0，不如保持单调：用上一个值 +1。
+       （宁可差 0.1ms，也不要给一个会让上位机误判的 0。）
+     */
+    {
+        static DWORD s_lastStamp = 0;
+        DWORD st = (DWORD)(f->ts_ns / 100000ULL);
+        if (st == 0) st = s_lastStamp + 1;      /* 0 或回退都兜住 */
+        else if (st < s_lastStamp) st = s_lastStamp + 1;
+        s_lastStamp = st;
+        o->TimeStamp = st;
+        o->TimeFlag  = 1;
+    }
     o->SendType   = 0;
     if (o->DataLen) memcpy(o->Data, f->data, o->DataLen);
 }

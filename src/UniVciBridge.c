@@ -689,7 +689,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-ts"
+#define UNIVCI_BUILD_TAG            "2026-11-05-ts2"
 #endif
 
 #define XL_ACTIVATE_NONE            0
