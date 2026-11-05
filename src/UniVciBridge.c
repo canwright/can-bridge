@@ -689,7 +689,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-vector-chan"
+#define UNIVCI_BUILD_TAG            "2026-11-05-vector-bus"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -698,6 +698,8 @@ typedef struct {
 #define XL_RECEIVE_MSG              1
 #define XL_CHIP_STATE               4
 #define XL_TRANSMIT_MSG             10
+/* 手册 18.1：10 = XL_ERR_QUEUE_IS_EMPTY（接收队列空，正常情况） */
+#define XL_ERR_QUEUE_IS_EMPTY       10
 
 #define XL_CAN_EXT_MSG_ID           0x80000000
 #define XL_CAN_MSG_FLAG_ERROR_FRAME 0x01
@@ -879,6 +881,12 @@ typedef struct { XLaccess mask; unsigned int hwType, hwIndex, hwChannel; } XLCAN
 #define XL_MAX_CAN_INFO 32
 static XLCANINFO g_xlCan[XL_MAX_CAN_INFO];
 static int       g_xlCanN = 0;
+/* 最近一次 XL_CHIP_STATE 事件：总线状态诊断用。
+   busStatus 0=正常 1=BUSOFF 2=错误主动 3=错误被动。
+   "启动成功但一帧没有"时，这一项能直接告诉你是总线关断还是线路问题。 */
+static int       g_xlChipState = -1;
+static int       g_xlTxErr = 0;
+static int       g_xlRxErr = 0;
 static const char *g_xlAppName = "UniVciBridge";
 /* 用户指定用第几路 Vector 硬件通道（1 起）。0 = 自动挑第一个有权限的 */
 static int g_xlWantChan = 0;
@@ -3618,10 +3626,34 @@ __declspec(dllexport) DWORD __stdcall VCI_Receive(DWORD DeviceType, DWORD Device
 
             ZeroMemory(evs, sizeof(evs));
             xs = pXlReceiveFn(g_xlPort, &n, evs);
-            if (xs == XL_SUCCESS || xs == 0x0B /* XL_ERR_QUEUE_IS_EMPTY */) {
+            /*
+             ★ 队列空是正常情况（没报文），码是 10 = XL_ERR_QUEUE_IS_EMPTY。
+               之前这里写的是 0x0B（11），对不上，等于把空队列当错误。
+             */
+            if (xs == XL_SUCCESS || xs == XL_ERR_QUEUE_IS_EMPTY) {
                 unsigned int k;
                 for (k = 0; k < n && r < Len; k++) {
                     XLcanMsg *m;
+
+                    /* ★ 总线状态事件：这一项能直接回答"为什么没报文"
+                         busStatus: 0=OK 1=BUSOFF 2=ERROR_ACTIVE 3=ERROR_PASSIVE
+                         tag=4 是 XL_CHIP_STATE，不带报文但带状态与错误计数。 */
+                    if (evs[k].tag == XL_CHIP_STATE) {
+                        const unsigned char *cs =
+                            (const unsigned char *)&evs[k].tagData;
+                        g_xlChipState = cs[0];
+                        g_xlTxErr = cs[1];
+                        g_xlRxErr = cs[2];
+                        LogF("  Vector 总线状态: busStatus=%u (%s) TEC=%u REC=%u",
+                             (unsigned)cs[0],
+                             cs[0] == 0 ? "正常" :
+                             cs[0] == 1 ? "★ 总线关闭 BUSOFF" :
+                             cs[0] == 2 ? "错误主动" :
+                             cs[0] == 3 ? "★ 错误被动（干扰/波特率/接线）" : "?",
+                             (unsigned)cs[1], (unsigned)cs[2]);
+                        continue;
+                    }
+
                     if (evs[k].tag != XL_RECEIVE_MSG) continue;
                     m = &evs[k].tagData.msg;
                     ZeroMemory(&pRecv[r], sizeof(VCI_CAN_OBJ));
