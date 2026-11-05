@@ -689,7 +689,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-vector-tx"
+#define UNIVCI_BUILD_TAG            "2026-11-05-vector-chan"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -880,6 +880,8 @@ typedef struct { XLaccess mask; unsigned int hwType, hwIndex, hwChannel; } XLCAN
 static XLCANINFO g_xlCan[XL_MAX_CAN_INFO];
 static int       g_xlCanN = 0;
 static const char *g_xlAppName = "UniVciBridge";
+/* 用户指定用第几路 Vector 硬件通道（1 起）。0 = 自动挑第一个有权限的 */
+static int g_xlWantChan = 0;
 static PF_xlCanTransmit      pXlTransmit = NULL;
 static PF_xlReceive          pXlReceiveFn = NULL;
 static PF_xlFlushReceiveQueue pXlFlushRx = NULL;
@@ -1871,6 +1873,14 @@ static void SelectBackend(void)
     SelfDir(dir, MAX_PATH * 2);
     ReadIniBackend(dir, want, sizeof(want));
     g_pcanEcho = ReadIniFlag(dir, "pcan_echo");
+    /* ★ 指定 Vector 硬件通道（VN1630A 的第几路 CAN，1 起） */
+    {
+        DWORD want = ReadIniInt(dir, "xl_channel");
+        g_xlWantChan = (want >= 1 && want <= 8) ? (int)want : 0;
+        if (g_xlWantChan)
+            LogF("★ 指定 Vector 通道: 第 %d 路（xl_channel=%d）",
+                 g_xlWantChan, g_xlWantChan);
+    }
     g_euLayout = ReadIniFlag(dir, "eu_layout");
 
     /* ★ 模拟画像：对外演成哪个型号 */
@@ -2357,6 +2367,15 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
                     XLaccess one = g_xlCan[ci].mask;
 
                     if (!(g_xlAvailMask & one)) continue;
+
+                    /* 用户指定了通道就只试那一个（按 hwChannel+1 对齐 VN1630A 的"Channel N"命名） */
+                    if (g_xlWantChan && (int)g_xlCan[ci].hwChannel + 1 != g_xlWantChan) {
+                        if (pass == 0)
+                            LogF("  Vector 跳过 VN1630A Channel %u（用户指定第 %d 路）",
+                                 g_xlCan[ci].hwChannel + 1, g_xlWantChan);
+                        continue;
+                    }
+
                     if (pass == 0) tried++;
 
                     if (pXlSetAppl) {
@@ -2409,8 +2428,27 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
                             g_xlPort = ph;
                             st = r;
                             gotPort = 1;
-                            LogF("  ★ Vector 拿到 init 权限：mask=0x%I64X ver=%u port=%lu",
-                                 (unsigned long long)one, kVers[vi], (unsigned long)ph);
+                            LogF("  ★ Vector 拿到 init 权限：mask=0x%I64X ver=%u port=%lu"
+                                 " → 用的是 VN1630A Channel %u",
+                                 (unsigned long long)one, kVers[vi], (unsigned long)ph,
+                                 g_xlCan[ci].hwChannel + 1);
+                            /*
+                             这条提示很重要（VN1630A 实测踩到）：
+                             前几路被别的程序占着时，桥会自动退到后面有空的口，
+                             但用户的 CAN 线可能接在前面的口上 —— 那就会
+                             "打开成功、开始接收、一帧没有"。
+                            */
+                            if (!g_xlWantChan && ci > 0) {
+                                int k;
+                                LogF("     ★ 注意：前面的通道被占用了，所以用了第 %u 路。",
+                                     g_xlCan[ci].hwChannel + 1);
+                                for (k = 0; k < ci; k++)
+                                    LogF("       VN1630A Channel %u 没有拿到权限（被占用或未分配）",
+                                         g_xlCan[k].hwChannel + 1);
+                                LogF("       如果 CAN 线接在别的口上，请二选一：");
+                                LogF("         · 跑「释放Vector通道.bat」腾出前几路，或");
+                                LogF("         · 在 UniVciBridge.ini 里写 xl_channel=<实际那一路>");
+                            }
                         } else {
                             if (pXlClosePort && ph) pXlClosePort(ph);
                             st = r;
