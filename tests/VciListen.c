@@ -73,6 +73,96 @@ int main(int argc, char **argv)
     setvbuf(stdout, NULL, _IONBF, 0);
 
     dev  = (argc >= 2) ? (DWORD)atoi(argv[1]) : 21;
+    if (argc >= 3 && strcmp(argv[2], "period") == 0) {
+        /*
+         period 模式：模仿上位机"按固定周期发送"，量三件事
+            ① 实际发送间隔（和设定值差多少）
+            ② 每次 VCI_Transmit 调用本身耗时
+            ③ 每次循环里 Receive 耗时
+         用来判断"设定 10ms 实际 12ms"到底是谁的问题。
+         用法：VciListen.exe 21 period [秒数] [间隔ms]
+         */
+        int secsP = (argc >= 4) ? atoi(argv[3]) : 8;
+        int ivlMs = (argc >= 5) ? atoi(argv[4]) : 10;
+        HMODULE d7 = LoadLibraryA("USBCAN.dll");
+        PF_OPEN  qO; PF_INIT qI; PF_START qS; PF_RX qR; PF_TX qT; PF_CLOSE qC;
+        VCI_CFG c7;
+        LARGE_INTEGER fq, tA, tB, tC, tPrev;
+        DWORD sent = 0;
+        double sumIvl = 0, sumTx = 0, sumRx = 0;
+        double maxIvl = 0, minIvl = 1e9;
+        double firstWall, lastWall;
+        int n = 0;
+
+        ch = 0;
+        printf("=== 周期发送测试  设定 %d ms，跑 %d 秒 ===\n\n", ivlMs, secsP);
+        if (!d7) { printf("  加载失败\n"); return 1; }
+        qO = (PF_OPEN)  GetProcAddress(d7, "VCI_OpenDevice");
+        qC = (PF_CLOSE) GetProcAddress(d7, "VCI_CloseDevice");
+        qI = (PF_INIT)  GetProcAddress(d7, "VCI_InitCAN");
+        qS = (PF_START) GetProcAddress(d7, "VCI_StartCAN");
+        qR = (PF_RX)    GetProcAddress(d7, "VCI_Receive");
+        qT = (PF_TX)    GetProcAddress(d7, "VCI_Transmit");
+
+        QueryPerformanceFrequency(&fq);
+        printf("  OpenDevice -> %lu\n", qO(dev, 0, 0));
+        ZeroMemory(&c7, sizeof(c7));
+        c7.AccMask = 0xFFFFFFFF; c7.Filter = 1; c7.Timing0 = 0x00; c7.Timing1 = 0x1C;
+        qI(dev, 0, 0, &c7); qS(dev, 0, 0);
+        qI(dev, 0, 1, &c7); qS(dev, 0, 1);
+
+        QueryPerformanceCounter(&tPrev);
+        QueryPerformanceCounter(&tA);
+        firstWall = (double)tA.QuadPart / (double)fq.QuadPart;
+
+        while (1) {
+            VCI_OBJ t, buf[16];
+            double ivl, txms, rxms;
+
+            QueryPerformanceCounter(&tA);
+            {
+                double now = (double)tA.QuadPart / (double)fq.QuadPart;
+                if (now - firstWall > secsP) break;
+            }
+            ivl = (double)(tA.QuadPart - tPrev.QuadPart) * 1000.0 / (double)fq.QuadPart;
+            if (n > 0) {
+                sumIvl += ivl;
+                if (ivl > maxIvl) maxIvl = ivl;
+                if (ivl < minIvl) minIvl = ivl;
+            }
+            tPrev = tA;
+
+            ZeroMemory(&t, sizeof(t));
+            t.ID = 0x1AB; t.DataLen = 8;
+            QueryPerformanceCounter(&tB);
+            qT(dev, 0, ch, &t, 1);
+            QueryPerformanceCounter(&tC);
+            txms = (double)(tC.QuadPart - tB.QuadPart) * 1000.0 / (double)fq.QuadPart;
+
+            QueryPerformanceCounter(&tB);
+            qR(dev, 0, ch, buf, 16, 0);      /* WaitTime=0，不阻塞 */
+            QueryPerformanceCounter(&tC);
+            rxms = (double)(tC.QuadPart - tB.QuadPart) * 1000.0 / (double)fq.QuadPart;
+
+            sumTx += txms; sumRx += rxms;
+            sent++; n++;
+            Sleep(ivlMs);
+        }
+        QueryPerformanceCounter(&tA);
+        lastWall = (double)tA.QuadPart / (double)fq.QuadPart;
+
+        printf("  发送 %lu 帧，实测总时长 %.3f 秒\n\n", (unsigned long)sent, lastWall - firstWall);
+        if (n > 1) {
+            printf("  实际间隔: 最小 %.3f  最大 %.3f  平均 %.3f ms（设定 %d ms）\n",
+                   minIvl, maxIvl, sumIvl / (n - 1), ivlMs);
+        }
+        printf("  VCI_Transmit 调用耗时平均: %.3f ms\n", sumTx / (n ? n : 1));
+        printf("  VCI_Receive(不阻塞) 耗时平均: %.3f ms\n", sumRx / (n ? n : 1));
+        printf("\n  判读：如果 VCI_Transmit 只要零点几毫秒、但间隔仍是 12ms，\n");
+        printf("        说明多出来的时间在 Sleep 上，是上位机定时器的问题，不是桥。\n");
+        qC(dev, 0);
+        return 0;
+    }
     if (argc >= 3 && strcmp(argv[2], "unit") == 0) {
         /*
          unit 模式：每 1000ms 发一帧，记录【墙上时间】和【报文时间戳】，

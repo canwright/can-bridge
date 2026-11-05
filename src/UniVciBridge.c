@@ -689,7 +689,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-ts2"
+#define UNIVCI_BUILD_TAG            "2026-11-05-txperf"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -3643,19 +3643,42 @@ __declspec(dllexport) DWORD __stdcall VCI_Transmit(DWORD DeviceType, DWORD Devic
             XLaccess tm = (CANInd < (DWORD)g_xlUseN) ? g_xlUseMask[CANInd] : g_xlMask;
             xs = pXlTransmit(g_xlPort, tm, &n, ev);
             if (xs == XL_SUCCESS) r = Len;
-            LogF("  Vector xlCanTransmit(%lu 帧) -> %lu, 已发 %lu",
-                 (unsigned long)Len, (unsigned long)xs, (unsigned long)r);
-            LogF("    参数: port=%lu mask=0x%I64X count=%u sizeofMsg=%u",
-                 (unsigned long)g_xlPort, (unsigned long long)g_xlMask,
-                 n, (unsigned)sizeof(XLcanMsg));
-            if (Len > 0)
-                LogF("    ev[0]: tag=%u id=0x%lX flags=0x%X dlc=%u data=%02X %02X %02X %02X",
-                     (unsigned)ev[0].tag,
-                     (unsigned long)ev[0].tagData.msg.id,
-                     (unsigned)ev[0].tagData.msg.flags,
-                     (unsigned)ev[0].tagData.msg.dlc,
-                     ev[0].tagData.msg.data[0], ev[0].tagData.msg.data[1],
-                     ev[0].tagData.msg.data[2], ev[0].tagData.msg.data[3]);
+            /*
+             ★ 发送日志必须限流。
+
+               LogLine 每写一条都是 _wfopen + fwrite + fclose ——
+               一次文件开关在普通磁盘上就要几百微秒。
+
+               原来这里【每次发送无条件写 3 条】，实测让 VCI_Transmit
+               固定多花 1.5~2 毫秒：
+                   设定 10ms 周期 → 实测 12.5ms
+                   设定  1ms 周期 → 实测  3.1ms
+               去掉后发送恢复成正常的几十微秒。
+
+               这些细节当初是为了查 101 错误加的，现在留着前几次就够，
+               之后每 1000 次记一条，出问题时仍然有迹可循。
+             */
+            {
+                static DWORD txLogN = 0;
+                txLogN++;
+                if (txLogN <= 5 || (txLogN % 1000) == 0) {
+                    LogF("  Vector xlCanTransmit(%lu 帧) -> %lu, 已发 %lu（第 %lu 次）",
+                         (unsigned long)Len, (unsigned long)xs,
+                         (unsigned long)r, (unsigned long)txLogN);
+                }
+                if (txLogN <= 3 && Len > 0) {
+                    LogF("    参数: port=%lu mask=0x%I64X count=%u sizeofMsg=%u",
+                         (unsigned long)g_xlPort, (unsigned long long)tm,
+                         n, (unsigned)sizeof(XLcanMsg));
+                    LogF("    ev[0]: tag=%u id=0x%lX flags=0x%X dlc=%u data=%02X %02X %02X %02X",
+                         (unsigned)ev[0].tag,
+                         (unsigned long)ev[0].tagData.msg.id,
+                         (unsigned)ev[0].tagData.msg.flags,
+                         (unsigned)ev[0].tagData.msg.dlc,
+                         ev[0].tagData.msg.data[0], ev[0].tagData.msg.data[1],
+                         ev[0].tagData.msg.data[2], ev[0].tagData.msg.data[3]);
+                }
+            }
         }
         break;
     }
