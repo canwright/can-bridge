@@ -2367,6 +2367,27 @@ L_FAIL:
         }
     }
     LogF("  ★ 回退也失败 —— 这块盒子用不了");
+    /* 光说"用不了"没意义，要告诉用户查什么。
+       这个项目最大的使用障碍不是"打不开"，而是用户不知道打不开该干嘛。 */
+    LogLine("");
+    LogLine("  ┌──────────────────────────────────────────────────────────┐");
+    LogLine("  │ 盒子和驱动都正常时，绝不会所有型号都返回 0。请依次检查：   │");
+    LogLine("  └──────────────────────────────────────────────────────────┘");
+    LogLine("    ① USB 线插紧了吗？换个 USB 口试试（优先主板后置口，别用扩展坞）");
+    LogLine("    ② 设备管理器里能看到它吗？");
+    LogLine("         通用串行总线设备 → ZLG USBCAN / USBCAN_2E_U / PCAN-USB");
+    LogLine("       有黄色感叹号 = 驱动没装好；完全看不到 = 盒子没被识别");
+    LogLine("    ③ 厂家驱动装了吗？");
+    LogLine("         周立功 → USBCAN 全系列驱动（服务名 ZLGCAN / USBCAN_E）");
+    LogLine("         PEAK   → PCAN-Basic + PCAN 驱动（服务名 PCAN_USB）");
+    LogLine("    ④ 盒子是不是被别的软件占着？");
+    LogLine("         一个 CAN 盒子同时只能被一个进程打开。先关掉");
+    LogLine("         ZCANPRO / CANTest / CANoe / CANape，或拔插一次盒子");
+    LogLine("    ⑤ 换一根 USB 线 —— 劣质线供电不足，最常见也最容易被忽略");
+    LogLine("");
+    LogLine("  怎么快速判断盒子在不在：");
+    LogLine("     设备管理器 → 查看 → 显示隐藏的设备 → 通用串行总线设备");
+    LogLine("     同名设备如果是灰色（未连接），就是没插或线坏了");
     LeaveCriticalSection(&g_cs);
     return STATUS_ERR;
 }
