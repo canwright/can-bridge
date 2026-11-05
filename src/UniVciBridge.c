@@ -651,7 +651,10 @@ typedef struct {
     XLuint64 res1;
     BYTE  data[8];
     XLuint64 res2;
-} XLcanMsg;                                  /* 32 字节 */
+} XLcanMsg;
+/* XLcanMsg 必须是 32 字节：4(id)+2(flags)+2(dlc)+8(res1)+8(data)+8(res2)
+   手册 5.5.1 原文，尺寸错了 xlCanTransmit 会返回 101 */
+typedef char CHECK_XL_CANMSG[(sizeof(XLcanMsg) == 32) ? 1 : -1];                                  /* 32 字节 */
 
 typedef union {
     XLcanMsg msg;
@@ -686,7 +689,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-vector-perm3"
+#define UNIVCI_BUILD_TAG            "2026-11-05-vector-tx"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -1306,12 +1309,28 @@ static int ProbeVector(const wchar_t *dir, int explicit_req)
                          (unsigned long long)c->channelMask);
                 }
                 if (!g_xlAvailMask && explicit_req) {
-                    /* 显式要求 vector 时允许用虚拟通道（方便无硬件时调试） */
-                    for (i = 0; i < cfg->channelCount; i++)
-                        if (cfg->channel[i].channelBusCapabilities & XL_BUS_COMPATIBLE_CAN)
-                            g_xlAvailMask |= cfg->channel[i].channelMask;
-                    LogF("VECTOR: 显式指定 vector，允许使用虚拟通道 mask=0x%I64X",
-                         (unsigned long long)g_xlAvailMask);
+                    /*
+                     显式要求 vector 时允许用虚拟通道（方便无硬件时调试）。
+
+                     ★ 这里必须【同时】填 g_xlCan[] 硬件信息表，
+                       否则后面打开端口那个循环（按 g_xlCanN 遍历）会是空的，
+                       日志就变成"试了 0 个 Vector 通道"，一个口都没试。
+                       这个 bug 是本机实测暴露的。
+                     */
+                    for (i = 0; i < cfg->channelCount; i++) {
+                        XLchannelConfig *c = &cfg->channel[i];
+                        if (!(c->channelBusCapabilities & XL_BUS_COMPATIBLE_CAN)) continue;
+                        g_xlAvailMask |= c->channelMask;
+                        if (g_xlCanN < XL_MAX_CAN_INFO) {
+                            g_xlCan[g_xlCanN].mask      = c->channelMask;
+                            g_xlCan[g_xlCanN].hwType    = c->hwType;
+                            g_xlCan[g_xlCanN].hwIndex   = c->hwIndex;
+                            g_xlCan[g_xlCanN].hwChannel = c->hwChannel;
+                            g_xlCanN++;
+                        }
+                    }
+                    LogF("VECTOR: 显式指定 vector，允许使用虚拟通道 mask=0x%I64X（%d 个口）",
+                         (unsigned long long)g_xlAvailMask, g_xlCanN);
                 }
                 if (!g_xlAvailMask) {
                     LogF("VECTOR: 没有可用的真 Vector 通道（只有虚拟通道），跳过");
@@ -2353,21 +2372,45 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
 
                     for (vi = 0; vi < 4 && !gotPort; vi++) {
                         XLportHandle ph = 0;
-                        XLaccess p2 = 0;
+                        /*
+                         ★★ permissionMask 是 in/out 参数 ★★
+
+                           手册示例写得很清楚：
+                               xlPermissionMask = m_xlChannelMask;   ← 调用前先填
+                               xlOpenPort(..., &xlPermissionMask, ...);
+
+                           它既是"我要申请哪些通道"，也是"实际给了你哪些"。
+                           一直传 0 进去，等于一个通道都不申请 ——
+                           驱动就老老实实返回 perm=0，而 status 仍然是 0，
+                           表现成"能打开、没权限"。
+
+                           这就是 32 次尝试全部 perm=0 的真正原因：
+                           不是版本号错，也不是通道被占，是我们把入参填成了 0。
+                         */
+                        XLaccess p2 = one;
                         XLstatus r = pXlOpenPort(&ph, g_xlAppName, one, &p2, 8192,
                                                  kVers[vi], XL_BUS_TYPE_CAN);
-                        LogF("  Vector xlOpenPort(mask=0x%I64X, ver=%u) -> %lu port=%lu perm=0x%I64X",
+                        LogF("  Vector xlOpenPort(mask=0x%I64X, ver=%u) -> %lu port=%lu perm_in=0x%I64X perm_out=0x%I64X",
                              (unsigned long long)one, kVers[vi],
                              (unsigned long)r, (unsigned long)ph,
-                             (unsigned long long)p2);
+                             (unsigned long long)one, (unsigned long long)p2);
+                        /*
+                         ★ 判据只看 perm，不看句柄是否为 0。
+
+                           实测反证（本机 virtual channel）：
+                             port=0 + perm=1 → 波特率设置 OK、激活 OK
+                             port=1 + perm=0 → 波特率返回 255(XL_ERROR)
+                           说明真正被授权的就是第一次那个 port=0；
+                           Vector 这里允许句柄为 0。硬要求非 0 反而把好的扔掉。
+                         */
                         if (r == XL_SUCCESS && p2 != 0) {
                             mask = one;
                             perm = p2;
                             g_xlPort = ph;
                             st = r;
                             gotPort = 1;
-                            LogF("  ★ Vector 拿到 init 权限：mask=0x%I64X ver=%u",
-                                 (unsigned long long)one, kVers[vi]);
+                            LogF("  ★ Vector 拿到 init 权限：mask=0x%I64X ver=%u port=%lu",
+                                 (unsigned long long)one, kVers[vi], (unsigned long)ph);
                         } else {
                             if (pXlClosePort && ph) pXlClosePort(ph);
                             st = r;
@@ -3330,15 +3373,31 @@ __declspec(dllexport) DWORD __stdcall VCI_Transmit(DWORD DeviceType, DWORD Devic
     }
     case BE_VECTOR: {
         if (g_xlPortOpen && pXlTransmit) {
-            XLcanMsg msgs[64];
+            /*
+             ★★ 必须传 XLevent 数组，不是裸 XLcanMsg ★★
+
+               手册 5.5.1 + 示例（Transmitting 100 CAN messages）：
+                   XLevent xlEvent[100];
+                   memset(xlEvent, 0, sizeof(xlEvent));   // required init.
+                   xlEvent[i].tag            = XL_TRANSMIT_MSG;
+                   xlEvent[i].tagData.msg.id = 0x04;
+                   ...
+                   xlCanTransmit(port, mask, &nCount, xlEvent);
+
+               之前直接传 XLcanMsg，驱动会把 msg.id(0x321) 当 tag 读，
+               于是返回 101 = XL_ERR_WRONG_PARAMETER。
+               这个 101 卡了很久，靠打印参数 + 手册示例才定位到。
+             */
+            XLevent ev[64];
             unsigned int n = 0;
             XLstatus xs;
-            DWORD base = 0;
 
             if (Len > 64) Len = 64;
-            ZeroMemory(msgs, sizeof(msgs));
+            ZeroMemory(ev, sizeof(ev));
             for (i = 0; i < Len; i++) {
-                XLcanMsg *m = &msgs[i];
+                XLcanMsg *m = &ev[i].tagData.msg;
+                ev[i].tag      = XL_TRANSMIT_MSG;
+                ev[i].chanIndex = 0;
                 m->id = pSend[i].ID;
                 if (pSend[i].ExternFlag) m->id |= XL_CAN_EXT_MSG_ID;
                 m->dlc = pSend[i].DataLen > 8 ? 8 : pSend[i].DataLen;
@@ -3347,12 +3406,22 @@ __declspec(dllexport) DWORD __stdcall VCI_Transmit(DWORD DeviceType, DWORD Devic
                     m->flags |= XL_CAN_MSG_FLAG_REMOTE_FRAME;
                 memcpy(m->data, pSend[i].Data, 8);
             }
-            (void)base;
             n = Len;
-            xs = pXlTransmit(g_xlPort, g_xlMask, &n, msgs);
+            xs = pXlTransmit(g_xlPort, g_xlMask, &n, ev);
             if (xs == XL_SUCCESS) r = Len;
             LogF("  Vector xlCanTransmit(%lu 帧) -> %lu, 已发 %lu",
                  (unsigned long)Len, (unsigned long)xs, (unsigned long)r);
+            LogF("    参数: port=%lu mask=0x%I64X count=%u sizeofMsg=%u",
+                 (unsigned long)g_xlPort, (unsigned long long)g_xlMask,
+                 n, (unsigned)sizeof(XLcanMsg));
+            if (Len > 0)
+                LogF("    ev[0]: tag=%u id=0x%lX flags=0x%X dlc=%u data=%02X %02X %02X %02X",
+                     (unsigned)ev[0].tag,
+                     (unsigned long)ev[0].tagData.msg.id,
+                     (unsigned)ev[0].tagData.msg.flags,
+                     (unsigned)ev[0].tagData.msg.dlc,
+                     ev[0].tagData.msg.data[0], ev[0].tagData.msg.data[1],
+                     ev[0].tagData.msg.data[2], ev[0].tagData.msg.data[3]);
         }
         break;
     }
