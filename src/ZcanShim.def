@@ -1,0 +1,82 @@
+; ZcanShim.def —— 假 zlgcan.dll 的导出表
+;
+; x86 下 __stdcall 内部符号是 _Name@N（N = 4 × 参数个数，所有参数都是
+; 指针或 32 位整数，没有 64 位/浮点按值传参）。这里用「导出名=内部名」
+; 显式映射，保证对外导出的是不带装饰的 ZCAN_XXX —— 和官方 zlgcan.dll 一致。
+;
+; 与官方 57 个导出相比，缺 ZCAN_OpenDeviceByName 等极少数新增函数时，
+; 会在加载阶段暴露（而不是运行时栈损坏），这是刻意的取舍。
+
+EXPORTS
+    ; ---- CAN 2.0 核心（真实现） ----
+    ZCAN_OpenDevice=_ZCAN_OpenDevice@12
+    ZCAN_CloseDevice=_ZCAN_CloseDevice@4
+    ZCAN_GetDeviceInf=_ZCAN_GetDeviceInf@8
+    ZCAN_GetDeviceInfoEx=_ZCAN_GetDeviceInfoEx@8
+    ZCAN_IsDeviceOnLine=_ZCAN_IsDeviceOnLine@4
+    ZCAN_InitCAN=_ZCAN_InitCAN@12
+    ZCAN_StartCAN=_ZCAN_StartCAN@4
+    ZCAN_ResetCAN=_ZCAN_ResetCAN@4
+    ZCAN_ClearBuffer=_ZCAN_ClearBuffer@4
+    ZCAN_ReadChannelErrInfo=_ZCAN_ReadChannelErrInfo@8
+    ZCAN_ReadChannelStatus=_ZCAN_ReadChannelStatus@8
+    ZCAN_GetReceiveNum=_ZCAN_GetReceiveNum@8
+    ZCAN_Transmit=_ZCAN_Transmit@12
+    ZCAN_Receive=_ZCAN_Receive@16
+    ZCAN_SetValue=_ZCAN_SetValue@12
+    ZCAN_GetValue=_ZCAN_GetValue@8
+    ZCAN_SetReference=_ZCAN_SetReference@12
+    ZCAN_GetReference=_ZCAN_GetReference@12
+    ZCAN_GetAvailableDevices=_ZCAN_GetAvailableDevices@8
+
+    ; ---- 设备/属性 ----
+    ZCAN_OpenDeviceByName=_ZCAN_OpenDeviceByName@12
+    ZCAN_GetOnlineDevices=_ZCAN_GetOnlineDevices@8
+    ZCAN_SetDeviceChangeCallback=_ZCAN_SetDeviceChangeCallback@8
+    ZCAN_BaudrateScan=_ZCAN_BaudrateScan@8
+    GetIProperty=_GetIProperty@4
+    ReleaseIProperty=_ReleaseIProperty@4
+
+    ; ---- CAN FD（桩：不支持） ----
+    ZCAN_TransmitFD=_ZCAN_TransmitFD@12
+    ZCAN_ReceiveFD=_ZCAN_ReceiveFD@16
+    ZCAN_TransmitData=_ZCAN_TransmitData@12
+    ZCAN_ReceiveData=_ZCAN_ReceiveData@16
+
+    ; ---- LIN（桩） ----
+    ZCAN_InitLIN=_ZCAN_InitLIN@12
+    ZCAN_StartLIN=_ZCAN_StartLIN@4
+    ZCAN_ResetLIN=_ZCAN_ResetLIN@4
+    ZCAN_TransmitLIN=_ZCAN_TransmitLIN@12
+    ZCAN_GetLINReceiveNum=_ZCAN_GetLINReceiveNum@4
+    ZCAN_ReceiveLIN=_ZCAN_ReceiveLIN@16
+    ZCAN_SetLINSubscribe=_ZCAN_SetLINSubscribe@12
+    ZCAN_SetLINPublish=_ZCAN_SetLINPublish@12
+    ZCAN_SetLINPublishEx=_ZCAN_SetLINPublishEx@12
+    ZCAN_WakeUpLIN=_ZCAN_WakeUpLIN@4
+    ZCAN_SetLINSlaveMsg=_ZCAN_SetLINSlaveMsg@12
+    ZCAN_ClearLINSlaveMsg=_ZCAN_ClearLINSlaveMsg@12
+    ZCAN_CreateLINSchedule=_ZCAN_CreateLINSchedule@12
+    ZCAN_DestroyLINSchedule=_ZCAN_DestroyLINSchedule@8
+    ZCAN_AddLINSchedule=_ZCAN_AddLINSchedule@12
+    ZCAN_ClrLINSchedule=_ZCAN_ClrLINSchedule@4
+    ZCAN_SetLINScheduleEnabled=_ZCAN_SetLINScheduleEnabled@12
+    ZCAN_SetLINScheduleItemEnabled=_ZCAN_SetLINScheduleItemEnabled@16
+    ZCAN_GetLINScheduleStatus=_ZCAN_GetLINScheduleStatus@12
+    ZCAN_StartLINSchedule=_ZCAN_StartLINSchedule@4
+    ZCAN_StopLINSchedule=_ZCAN_StopLINSchedule@4
+
+    ; ---- UDS（桩） ----
+    ZCAN_UDS_Request=_ZCAN_UDS_Request@20
+    ZCAN_UDS_Control=_ZCAN_UDS_Control@12
+    ZCAN_UDS_RequestEX=_ZCAN_UDS_RequestEX@20
+    ZCAN_UDS_ControlEX=_ZCAN_UDS_ControlEX@16
+    ZCAN_UDS_SetTesterPresent=_ZCAN_UDS_SetTesterPresent@8
+
+    ; ---- ZCLOUD（桩） ----
+    ZCLOUD_SetServerInfo=_ZCLOUD_SetServerInfo@16
+    ZCLOUD_ConnectServer=_ZCLOUD_ConnectServer@8
+    ZCLOUD_IsConnected=_ZCLOUD_IsConnected@0
+    ZCLOUD_DisconnectServer=_ZCLOUD_DisconnectServer@0
+    ZCLOUD_GetUserData=_ZCLOUD_GetUserData@4
+    ZCLOUD_ReceiveGPS=_ZCLOUD_ReceiveGPS@16

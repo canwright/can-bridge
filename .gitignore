@@ -1,0 +1,43 @@
+# ── 构建产物 ──
+out/
+*.obj
+*.exp
+*.lib
+*.pdb
+*.ilk
+*.dll
+*.exe
+
+# ── 运行产物 ──
+*.log
+*.txt.bak
+*.replaced
+*.zlg.bak
+*.canbridge.bak
+
+# ── 厂商 DLL / 驱动安装包：绝不可入库 ──
+# （各有 EULA，不允许再分发）
+drivers/
+drivers_setup/
+ControlCAN.dll
+ControlCAN1.dll
+ECanVci.dll
+CHUSBDLL.dll
+canlib32.dll
+PCANBasic.dll
+vxlapi.dll
+zlgcan.dll
+USBCAN*.dll
+TSMaster.dll
+libTSCAN.dll
+
+# ── 厂商文档：受版权保护，只放链接 ──
+*.pdf
+_dl/
+
+# ── 系统 ──
+Thumbs.db
+desktop.ini
+.vs/
+*.user
+*.suo

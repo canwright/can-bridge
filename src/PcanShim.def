@@ -1,0 +1,28 @@
+; PcanShim.def —— 假 PCANBasic.dll 的导出表
+;
+; ★ 为什么必须用别名映射：
+;   x86 下 __stdcall 的函数内部符号是 _Name@N（N = 参数字节数），
+;   而 PCAN-Basic 真实的 DLL 导出的是不带装饰的 CAN_Initialize 这种名字。
+;   如果 .def 只写 CAN_Initialize，链接器会找不到 _CAN_Initialize@N。
+;   所以这里用「导出名=内部名」的形式显式映射。
+;
+; N 的计算：每个参数在栈上占 4 字节（WORD/BYTE 会提升为 DWORD）。
+
+EXPORTS
+    CAN_Initialize=_CAN_Initialize@20
+    CAN_InitializeFD=_CAN_InitializeFD@8
+    CAN_InitializeXL=_CAN_InitializeXL@8
+    CAN_Uninitialize=_CAN_Uninitialize@4
+    CAN_Reset=_CAN_Reset@4
+    CAN_GetStatus=_CAN_GetStatus@4
+    CAN_Read=_CAN_Read@12
+    CAN_ReadFD=_CAN_ReadFD@12
+    CAN_ReadXL=_CAN_ReadXL@12
+    CAN_Write=_CAN_Write@8
+    CAN_WriteFD=_CAN_WriteFD@8
+    CAN_WriteXL=_CAN_WriteXL@8
+    CAN_FilterMessages=_CAN_FilterMessages@16
+    CAN_GetValue=_CAN_GetValue@16
+    CAN_SetValue=_CAN_SetValue@16
+    CAN_GetErrorText=_CAN_GetErrorText@12
+    CAN_LookUpChannel=_CAN_LookUpChannel@8

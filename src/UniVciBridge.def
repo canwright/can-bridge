@@ -1,0 +1,24 @@
+;
+; UniVciBridge.def —— 导出 14 个 VCI 函数
+;
+; 为什么要 .def：
+;   __stdcall 在 32 位下会把符号修饰成 _VCI_OpenDevice@12，
+;   而 ZCANPRO 用 GetProcAddress("VCI_OpenDevice") 找函数，
+;   带修饰名就找不到。用 .def 显式给出未修饰名，两边都能用。
+;
+EXPORTS
+    VCI_OpenDevice
+    VCI_CloseDevice
+    VCI_InitCAN
+    VCI_StartCAN
+    VCI_ResetCAN
+    VCI_ClearBuffer
+    VCI_GetReceiveNum
+    VCI_Transmit
+    VCI_Receive
+    VCI_ReadBoardInfo
+    VCI_ReadErrInfo
+    VCI_ReadCANStatus
+    VCI_GetReference
+    VCI_SetReference
+    UniVciBridgeIdent
