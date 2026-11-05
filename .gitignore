@@ -1,4 +1,4 @@
-# ── 构建产物 ──
+# 鈹€鈹€ 鏋勫缓浜х墿 鈹€鈹€
 out/
 *.obj
 *.exp
@@ -8,15 +8,15 @@ out/
 *.dll
 *.exe
 
-# ── 运行产物 ──
+# 鈹€鈹€ 杩愯浜х墿 鈹€鈹€
 *.log
 *.txt.bak
 *.replaced
 *.zlg.bak
 *.canbridge.bak
 
-# ── 厂商 DLL / 驱动安装包：绝不可入库 ──
-# （各有 EULA，不允许再分发）
+# 鈹€鈹€ 鍘傚晢 DLL / 椹卞姩瀹夎鍖咃細缁濅笉鍙叆搴?鈹€鈹€
+# 锛堝悇鏈?EULA锛屼笉鍏佽鍐嶅垎鍙戯級
 drivers/
 drivers_setup/
 ControlCAN.dll
@@ -31,13 +31,19 @@ USBCAN*.dll
 TSMaster.dll
 libTSCAN.dll
 
-# ── 厂商文档：受版权保护，只放链接 ──
+# 鈹€鈹€ 鍘傚晢鏂囨。锛氬彈鐗堟潈淇濇姢锛屽彧鏀鹃摼鎺?鈹€鈹€
 *.pdf
 _dl/
 
-# ── 系统 ──
+# 鈹€鈹€ 绯荤粺 鈹€鈹€
 Thumbs.db
 desktop.ini
 .vs/
 *.user
 *.suo
+
+# ── 凭据临时文件（绝不可入库）──
+ghcred_*
+*ghcred*
+Users*tempghcred*
+.git-credentials

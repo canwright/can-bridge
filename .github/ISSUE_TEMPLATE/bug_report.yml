@@ -1,0 +1,98 @@
+name: Bug report
+description: 报告一个"盒子打不开 / 收不到 / 崩了"的问题
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        这个项目 90% 的问题都能靠**三个数字**定位方向，请先把它们填上。
+
+        | 接收帧数 | 错误帧数 | 说明 |
+        | --- | --- | --- |
+        | 0 | **0** | 没接总线 / CAN_H、CAN_L 接反 / 插错通道 / 句柄泄漏 |
+        | 0 | **万级** | 有信号但波特率或型号不对 |
+        | 持续增长 | 0 | 正常 |
+        | 少量 | 偶发 | 多半是终端电阻缺失 |
+
+  - type: input
+    id: host
+    attributes:
+      label: 上位机软件 + 版本
+      placeholder: 例如 ZCANPRO 2.4.1 / CANape 16.0 / 自己写的工具
+    validations:
+      required: true
+
+  - type: input
+    id: box
+    attributes:
+      label: 盒子品牌 + 型号
+      placeholder: 例如 周立功 USBCAN-2E-U / 创芯 CANalyst-II / PEAK PCAN-USB
+    validations:
+      required: true
+
+  - type: dropdown
+    id: symptom
+    attributes:
+      label: 现象
+      options:
+        - 设备打不开（OpenDevice 失败）
+        - 能打开但收不到帧
+        - 能收发但数据不对（长度/ID/内容）
+        - 上位机崩溃或卡死
+        - 卸载后厂家软件不正常
+        - 其它
+    validations:
+      required: true
+
+  - type: input
+    id: counters
+    attributes:
+      label: 接收帧数 / 错误帧数
+      placeholder: 例如 接收 0，错误 74458
+    validations:
+      required: true
+
+  - type: textarea
+    id: log
+    attributes:
+      label: 桥日志关键行
+      description: |
+        日志在**上位机程序目录**下的 `UniVciBridge.log`。
+        至少贴这几行：
+          - `后端: VCI 兼容 XXX.dll（型号 N 能打开）`
+          - `InitCAN 配置（16字节布局）: ...`
+          - 任何 `-> 0` 或失败的行
+      render: text
+    validations:
+      required: true
+
+  - type: input
+    id: has_dll
+    attributes:
+      label: 上位机目录里原本有没有 USBCAN.dll？
+      description: 新版 ZCANPRO（如 2.4.1）主目录里没有这个文件，走的是 zlgcan + kerneldlls 那一套，装桥的方式不同。
+      placeholder: 有 / 没有 / 不知道
+    validations:
+      required: true
+
+  - type: textarea
+    id: tried
+    attributes:
+      label: 已经试过什么
+      placeholder: |
+        例如：
+        - 拔插过盒子，无效
+        - 重启电脑后正常
+        - 一键卸载后厂家软件恢复
+      render: text
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: 安全确认
+      options:
+        - label: 我没有替换过 C:\Windows\System32 或 SysWOW64 里的厂家 DLL
+          required: true
+        - label: 我知道装之前应该先备份，并能用「一键恢复.exe」还原
+          required: true

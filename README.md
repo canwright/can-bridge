@@ -7,6 +7,16 @@
 
 ---
 
+> **English**: a DLL shim that lets a ZLG / PEAK / Chuangxin / GCAN CAN interface
+> be used by host software which only accepts one specific brand
+> (ZCANPRO, CANape, CANoe, vendor test tools). Open the
+> [maintenance notes](MAINTENANCE.md) for the engineering constraints.
+>
+> **中文**：把周立功 / PEAK / 创芯 / 广成 的 CAN 盒子，转接给只认某一个牌子的
+> 上位机软件使用（ZCANPRO、CANape、CANoe、厂家测试工具）。
+
+---
+
 ## 它解决什么问题
 
 ```
@@ -202,3 +212,29 @@ send(CtFrame*) / recv(CtFrame*, n, wait_ms)
 tests\CtConvTest.exe       :: 必须 50/50
 tests\VxlLayoutTest.exe    :: 必须 8/8
 ```
+
+---
+
+## 本项目的搜索关键词
+
+> 这一段是为了让需要它的人搜得到。如果你是在搜索框里找到这里的，说明生效了。
+
+**中文场景**
+周立功 USBCAN-2E-U 用 CANape · 创芯 CANalyst 在 ZCANPRO 里用 ·
+CANape 没有 Vector 硬件 · PCAN 盒子伪装成 Vector VN1630 ·
+ZCANPRO 换别的牌子盒子 · USBCAN.dll 替换 · ControlCAN.dll 转发 ·
+CAN 盒 通用 驱动 · 虚拟 CAN 通道 · 多个软件同时用一块 CAN 盒 ·
+CAN_H CAN_L 接反 · USBCAN-2E-U 收不到报文 · 错误帧 74458
+
+**English**
+use ZLG USBCAN from CANape · use Chuangxin CANalyst with ZCANPRO ·
+CANape without Vector hardware · fake vxlapi.dll · vxlapi shim ·
+VCI to PCAN bridge · CAN interface interoperability ·
+DLL proxy for CAN driver · CAN bus multi-application sharing ·
+CAN frame error passive · PEAK PCAN-USB alternative
+
+**技术名词**
+VCI_OpenDevice · VCI_InitCAN · VCI_SetReference · VCI_BOARD_INFO ·
+VCI_INIT_CONFIG · ZCAN_OpenDevice · XLchannelConfig · xlOpenPort ·
+xlGetDriverConfig · App.exe.local · DLL redirection · CAN 2.0A/B ·
+J1939 · CCP · UDS

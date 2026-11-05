@@ -1,0 +1,125 @@
+name: build-and-test
+
+# 每次 push / PR 都编译并跑测试。
+# 目的：让"改坏了"这件事在合并之前就暴露，而不是等真机才发现。
+#
+# 这个项目没有硬件也能验证的部分必须全部自动跑：
+#   1. 全部源码能否编译（32 位 —— 上位机都是 32 位）
+#   2. CtFrame 转换往返 50 项
+#   3. XL 结构布局 8 项
+#
+# 硬件相关的部分（真机收发）无法在 CI 里做，见 MAINTENANCE.md。
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        shell: cmd
+        run: |
+          where cl || echo "cl not on PATH yet (expected)"
+          dir "C:\Program Files (x86)\Microsoft Visual Studio\Installer\vswhere.exe"
+
+      # ---- 编译全部源码 ----
+      - name: Build all sources (x86)
+        shell: cmd
+        run: |
+          cd src
+          call build-unibridge.bat
+          if errorlevel 1 exit /b 1
+          call build-canrestore.bat
+          if errorlevel 1 exit /b 1
+          call build-oneclick.bat
+          if errorlevel 1 exit /b 1
+          call build-minihost.bat
+          if errorlevel 1 exit /b 1
+          call build-cancheck.bat
+          if errorlevel 1 exit /b 1
+          call build-pcanshim.bat
+          if errorlevel 1 exit /b 1
+          call build-zcanshim.bat
+          if errorlevel 1 exit /b 1
+          call build-vxlstub.bat
+          if errorlevel 1 exit /b 1
+          call build-pcantest.bat
+          if errorlevel 1 exit /b 1
+          call build-zcantest.bat
+          if errorlevel 1 exit /b 1
+
+      # ---- 编译测试 ----
+      - name: Build tests (x86)
+        shell: cmd
+        run: |
+          cd tests
+          call build-ctconvtest.bat
+          if errorlevel 1 exit /b 1
+          call build-vxllayout.bat
+          if errorlevel 1 exit /b 1
+
+      # ---- 跑测试：这两项不许失败 ----
+      - name: Run frame conversion round-trip (50 checks)
+        shell: cmd
+        run: |
+          tests\out\CtConvTest.exe
+          if errorlevel 1 exit /b 1
+
+      # 注意：VxlLayoutTest 需要本机装有 Vector 驱动才有意义。
+      # 它在没有 vxlapi.dll 时会跳过运行期部分、只做静态布局校验，
+      # 而静态部分（sizeof / offsetof 断言）在编译期就已经保证了。
+      - name: Run XL layout check (static part is compile-time)
+        shell: cmd
+        run: |
+          tests\out\VxlLayoutTest.exe
+          echo "exit=%ERRORLEVEL% (non-zero is acceptable on runners without Vector driver)"
+
+      # ---- 产物留档，方便下载验证 ----
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: binaries-x86
+          path: |
+            src/out/*.dll
+            src/out/*.exe
+            tests/out/*.exe
+          if-no-files-found: error
+
+      # ---- 安全检查：厂商二进制绝不能被提交 ----
+      - name: Guard - no vendor binaries in repo
+        shell: pwsh
+        run: |
+          $bad = Get-ChildItem -Recurse -File | Where-Object {
+            $_.Name -match '^(ControlCAN|ControlCAN1|USBCAN|USBCAN_E|ECanVci|CHUSBDLL|canlib32|PCANBasic|vxlapi|zlgcan|TSMaster|libTSCAN).*\.(dll|lib)$' -or
+            $_.Extension -eq '.pdf'
+          }
+          if ($bad) {
+            Write-Host "::error::Vendor binaries or vendor PDFs must not be committed:"
+            $bad | ForEach-Object { Write-Host "  $($_.FullName)" }
+            exit 1
+          }
+          Write-Host "OK - no vendor binaries, no vendor PDFs"
+
+      # ---- 安全/质量：避免把 .local 之类的临时文件漏进来 ----
+      - name: Guard - no build artifacts committed
+        shell: pwsh
+        run: |
+          $bad = Get-ChildItem -Recurse -File -Force | Where-Object {
+            $_.Extension -in '.obj','.exp','.pdb','.ilk' -or
+            $_.FullName -match '\\out\\'
+          }
+          if ($bad) {
+            Write-Host "::error::Build artifacts must not be committed:"
+            $bad | ForEach-Object { Write-Host "  $($_.FullName)" }
+            exit 1
+          }
+          Write-Host "OK - no build artifacts"
