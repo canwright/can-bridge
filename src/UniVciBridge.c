@@ -686,7 +686,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-vector-perm2"
+#define UNIVCI_BUILD_TAG            "2026-11-05-vector-perm3"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -2301,53 +2301,84 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
            Vector 的规矩：没分配过就永远拿不到 perm。
         */
         {
-            int ci, tried = 0, gotPort = 0;
-            XLaccess tryMask = g_xlAvailMask;
+            /*
+             ★ 三层重试，把"猜"变成"试"：
 
-            st = XL_ERR_NOT_IMPLEMENTED;   /* 先假设全失败 */
-            for (ci = 0; ci < g_xlCanN && !gotPort; ci++) {
-                XLaccess one = g_xlCan[ci].mask;
-                XLaccess p2 = 0;
-                XLstatus r;
+               手册说 xlInterfaceVersion 要传"当前 API 版本"，但 vxlapi.h
+               不随驱动发布，我们原来把 XL_INTERFACE_VERSION_V3 当成 3 ——
+               这是猜的。真驱动报出来的 channel[].interfaceVersion 是 4，
+               所以 3 很可能不对。与其继续猜，不如挨个试。
 
-                if (!(tryMask & one)) continue;      /* 已被试过/不可用 */
-                tried++;
+               第 1 层：每个通道 × 4 个版本号
+               第 2 层：整轮失败后重启驱动再来一轮
+                        （有些驱动版本要在 xlCloseDriver/xlOpenDriver 之后
+                          才认 xlSetApplConfig 写进去的通道分配）
 
-                /* 先分配：应用名、应用通道号 0、硬件定位、总线类型 */
-                if (pXlSetAppl) {
-                    XLstatus sa = pXlSetAppl(g_xlAppName, 0,
-                                             g_xlCan[ci].hwType,
-                                             g_xlCan[ci].hwIndex,
-                                             g_xlCan[ci].hwChannel,
-                                             XL_BUS_TYPE_CAN);
-                    LogF("  Vector xlSetApplConfig(%s, ch0, hwType=%u, hwIndex=%u, hwChannel=%u) -> %lu",
-                         g_xlAppName, g_xlCan[ci].hwType, g_xlCan[ci].hwIndex,
-                         g_xlCan[ci].hwChannel, (unsigned long)sa);
+               哪一步拿到 perm != 0 就用哪一步，全部记进日志。
+             */
+            static const unsigned int kVers[4] = { 3, 4, 0x0400, 0x0300 };
+            int pass, ci, vi, tried = 0, gotPort = 0;
+
+            st = XL_ERR_NOT_IMPLEMENTED;
+            for (pass = 0; pass < 2 && !gotPort; pass++) {
+                if (pass == 1) {
+                    LogF("  Vector: 第 1 轮全失败，重启驱动后再试一轮");
+                    if (pXlClose) pXlClose();
+                    g_xlDriverOpen = 0;
+                    Sleep(250);
+                    if (pXlOpen() == XL_SUCCESS) {
+                        g_xlDriverOpen = 1;
+                    } else {
+                        LogF("  Vector: 重开驱动失败，放弃");
+                        break;
+                    }
                 }
 
-                g_xlPort = 0;
-                r = pXlOpenPort(&g_xlPort, g_xlAppName, one, &p2, 8192,
-                                XL_INTERFACE_VERSION_V3, XL_BUS_TYPE_CAN);
-                LogF("  Vector xlOpenPort(mask=0x%I64X) -> %lu port=%lu perm=0x%I64X",
-                     (unsigned long long)one, (unsigned long)r,
-                     (unsigned long)g_xlPort, (unsigned long long)p2);
+                for (ci = 0; ci < g_xlCanN && !gotPort; ci++) {
+                    XLaccess one = g_xlCan[ci].mask;
 
-                if (r == XL_SUCCESS && p2 != 0) {
-                    /* 拿到权限，就用这个口 */
-                    mask = one;
-                    perm = p2;
-                    st = r;
-                    gotPort = 1;
-                } else {
-                    /* 没权限：先把 port 关掉，再试下一个口，别泄漏 */
-                    if (pXlClosePort && g_xlPort) pXlClosePort(g_xlPort);
-                    g_xlPort = 0;
-                    st = r;
-                    perm = 0;
+                    if (!(g_xlAvailMask & one)) continue;
+                    if (pass == 0) tried++;
+
+                    if (pXlSetAppl) {
+                        XLstatus sa = pXlSetAppl(g_xlAppName, 0,
+                                                 g_xlCan[ci].hwType,
+                                                 g_xlCan[ci].hwIndex,
+                                                 g_xlCan[ci].hwChannel,
+                                                 XL_BUS_TYPE_CAN);
+                        LogF("  Vector xlSetApplConfig(%s, ch0, hwType=%u, hwIndex=%u, hwChannel=%u) -> %lu",
+                             g_xlAppName, g_xlCan[ci].hwType, g_xlCan[ci].hwIndex,
+                             g_xlCan[ci].hwChannel, (unsigned long)sa);
+                    }
+
+                    for (vi = 0; vi < 4 && !gotPort; vi++) {
+                        XLportHandle ph = 0;
+                        XLaccess p2 = 0;
+                        XLstatus r = pXlOpenPort(&ph, g_xlAppName, one, &p2, 8192,
+                                                 kVers[vi], XL_BUS_TYPE_CAN);
+                        LogF("  Vector xlOpenPort(mask=0x%I64X, ver=%u) -> %lu port=%lu perm=0x%I64X",
+                             (unsigned long long)one, kVers[vi],
+                             (unsigned long)r, (unsigned long)ph,
+                             (unsigned long long)p2);
+                        if (r == XL_SUCCESS && p2 != 0) {
+                            mask = one;
+                            perm = p2;
+                            g_xlPort = ph;
+                            st = r;
+                            gotPort = 1;
+                            LogF("  ★ Vector 拿到 init 权限：mask=0x%I64X ver=%u",
+                                 (unsigned long long)one, kVers[vi]);
+                        } else {
+                            if (pXlClosePort && ph) pXlClosePort(ph);
+                            st = r;
+                            perm = 0;
+                        }
+                    }
                 }
             }
+
             if (!gotPort) {
-                LogF("  ★ 试了 %d 个 Vector 通道，都没拿到 init 权限", tried);
+                LogF("  ★ 试了 %d 个 Vector 通道 × 4 个接口版本 × 2 轮，都没拿到 init 权限", tried);
                 st = (tried ? XL_ERR_INIT_ACCESS_MISSING : XL_ERR_NO_DATA_DETECTED);
                 goto L_FAIL;
             }
