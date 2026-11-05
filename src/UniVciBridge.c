@@ -677,6 +677,14 @@ typedef struct {
 #define XL_BUS_ACTIVE_CAP_CAN       0x00010000
 #define XL_INTERFACE_VERSION_V3     3
 
+/* ═══ 版本标记 ═══
+   日志会把它打出来，用来确认「跑的到底是哪一版」。
+   这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
+   加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
+#ifndef UNIVCI_BUILD_TAG
+#define UNIVCI_BUILD_TAG            "2026-11-05-vector-auto"
+#endif
+
 #define XL_ACTIVATE_NONE            0
 #define XL_ACTIVATE_RESET_CLOCK     8
 
@@ -3727,7 +3735,14 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
         g_csReady = 1;
         DisableThreadLibraryCalls(hModule);
         /* ★ 不在这里加载后端 DLL、不做重活 */
+        /*
+           日志必须自己报版本。
+           这个项目已经反复出现「测的是旧版 DLL，得出错误结论」——
+           光看日志头分不清跑的是哪一版，白排查好几轮。
+           __DATE__/__TIME__ 是编译期常量，不同构建必然不同。
+        */
         LogLine("=== UniVciBridge 已加载 ===");
+        LogF("构建: %s %s  (v%s)", __DATE__, __TIME__, UNIVCI_BUILD_TAG);
     } else if (reason == DLL_PROCESS_DETACH) {
         LogLine("=== UniVciBridge 已卸载 ===");
         /*
