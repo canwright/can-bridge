@@ -73,6 +73,152 @@ int main(int argc, char **argv)
     setvbuf(stdout, NULL, _IONBF, 0);
 
     dev  = (argc >= 2) ? (DWORD)atoi(argv[1]) : 21;
+    if (argc >= 3 && strcmp(argv[2], "cross") == 0) {
+        /*
+         cross 模式：在通道 0 发，然后同时读两个通道。
+         用来验证"两个通道真的在同一根总线上互通"：
+           两个 VN 口对接时，ch0 发的帧应该 ch1 也收到（ch1 还负责应答）。
+         用法：VciListen.exe 21 cross [秒数] [ID]
+         */
+        int secsX = (argc >= 4) ? atoi(argv[3]) : 4;
+        DWORD idX = (argc >= 5) ? (DWORD)strtoul(argv[4], NULL, 16) : 0x1AB;
+        HMODULE d5 = LoadLibraryA("USBCAN.dll");
+        PF_OPEN  xO; PF_INIT xI; PF_START xS; PF_RX xR; PF_TX xT; PF_CLOSE xC;
+        VCI_CFG c5;
+        DWORD t0e;
+        int c0x = 0, c1x = 0, seen0 = 0, seen1 = 0;
+
+        printf("=== 交叉收发：ch0 发, 两路都读  型号=%lu  %d 秒  ID=0x%lX ===\n\n",
+               (unsigned long)dev, secsX, (unsigned long)idX);
+        if (!d5) { printf("  加载 USBCAN.dll 失败\n"); return 1; }
+        xO = (PF_OPEN)  GetProcAddress(d5, "VCI_OpenDevice");
+        xC = (PF_CLOSE) GetProcAddress(d5, "VCI_CloseDevice");
+        xI = (PF_INIT)  GetProcAddress(d5, "VCI_InitCAN");
+        xS = (PF_START) GetProcAddress(d5, "VCI_StartCAN");
+        xR = (PF_RX)    GetProcAddress(d5, "VCI_Receive");
+        xT = (PF_TX)    GetProcAddress(d5, "VCI_Transmit");
+
+        printf("  OpenDevice -> %lu\n", xO(dev, 0, 0));
+        ZeroMemory(&c5, sizeof(c5));
+        c5.AccMask = 0xFFFFFFFF; c5.Filter = 1;
+        c5.Timing0 = 0x00; c5.Timing1 = 0x1C;
+        printf("  InitCAN  ch0=%lu ch1=%lu\n", xI(dev, 0, 0, &c5), xI(dev, 0, 1, &c5));
+        printf("  StartCAN ch0=%lu ch1=%lu\n\n", xS(dev, 0, 0), xS(dev, 0, 1));
+
+        {
+            VCI_OBJ t;
+            ZeroMemory(&t, sizeof(t));
+            t.ID = idX; t.DataLen = 4;
+            t.Data[0] = 0xC0; t.Data[1] = 0xFF; t.Data[2] = 0xEE; t.Data[3] = 0x01;
+            printf("  [ch0 发] ID=0x%lX -> %lu\n\n",
+                   (unsigned long)idX, xT(dev, 0, 0, &t, 1));
+        }
+
+        t0e = GetTickCount();
+        {
+            DWORD lastSend = 0, sentX = 0;
+            while ((int)(GetTickCount() - t0e) < secsX * 1000) {
+                int c;
+                /* 每 50ms 发一帧，data[0..1] 是递增计数器 */
+                if ((DWORD)(GetTickCount() - lastSend) >= 50) {
+                    VCI_OBJ t2;
+                    ZeroMemory(&t2, sizeof(t2));
+                    t2.ID = idX; t2.DataLen = 8;
+                    t2.Data[0] = (BYTE)(sentX & 0xFF);
+                    t2.Data[1] = (BYTE)((sentX >> 8) & 0xFF);
+                    t2.Data[2] = 0xC0; t2.Data[3] = 0xFF;
+                    if (xT(dev, 0, 0, &t2, 1) == 1) sentX++;
+                    lastSend = GetTickCount();
+                }
+                for (c = 0; c < 2; c++) {
+                    VCI_OBJ buf[32];
+                    DWORD n = xR(dev, 0, (DWORD)c, buf, 32, 5);
+                    DWORD kk;
+                    for (kk = 0; kk < n && kk < 32; kk++) {
+                        if (buf[kk].ID != idX) continue;
+                        if (c == 0) { c0x++; if (!seen0) { seen0 = 1;
+                            printf("  [ch0] 首帧 数据=%02X %02X\n", buf[kk].Data[0], buf[kk].Data[1]); } }
+                        else        { c1x++; if (!seen1) { seen1 = 1;
+                            printf("  [ch1] 首帧 数据=%02X %02X\n", buf[kk].Data[0], buf[kk].Data[1]); } }
+                    }
+                }
+                Sleep(3);
+            }
+            printf("\n  发送 %lu 帧\n", (unsigned long)sentX);
+        }
+
+        printf("\n  === ch0 收到 %d 帧，ch1 收到 %d 帧 ===\n", c0x, c1x);
+        if (c0x > 0 && c1x > 0) {
+            printf("  ✅ 两个通道在同一总线上互通，且各自独立收帧\n");
+            printf("     （ch0 的回显 + ch1 的实收，说明另一路确实在应答）\n");
+        } else if (c0x > 0 && c1x == 0) {
+            printf("  · 只有 ch0 收到回显 —— 说明 CAN 2 没接在这根线上\n");
+        } else if (c0x == 0 && c1x > 0) {
+            printf("  · 只有 ch1 收到 —— ch0 没接上\n");
+        } else {
+            printf("  ★ 两路都没收到 —— 两个口没接在同一根线上，或没有终端电阻\n");
+        }
+        xC(dev, 0);
+        return 0;
+    }
+    if (argc >= 4 && strcmp(argv[3], "spam") == 0) {
+        /*
+         spam 模式：每 100ms 发一帧，data[0] 是递增计数器。
+         用法：VciListen.exe 21 <通道> <秒数> spam [ID]
+         用来做"一个盒子发、另一个盒子收"的闭环测试。
+         */
+        HMODULE d4 = LoadLibraryA("USBCAN.dll");
+        PF_OPEN  hO; PF_INIT hI; PF_START hS; PF_RX hR; PF_TX hT; PF_CLOSE hC;
+        PF_NUM   hN;
+        VCI_CFG c4;
+        DWORD t0d, sent = 0;
+        DWORD txId = (argc >= 6) ? (DWORD)strtoul(argv[5], NULL, 16) : 0x123;
+        int recvN = 0;
+
+        printf("=== spam 发送  型号=%lu 通道=%lu  %d 秒  ID=0x%lX ===\n\n",
+               (unsigned long)dev, (unsigned long)ch, secs, (unsigned long)txId);
+        if (!d4) { printf("  加载 USBCAN.dll 失败\n"); return 1; }
+        hO = (PF_OPEN)  GetProcAddress(d4, "VCI_OpenDevice");
+        hC = (PF_CLOSE) GetProcAddress(d4, "VCI_CloseDevice");
+        hI = (PF_INIT)  GetProcAddress(d4, "VCI_InitCAN");
+        hS = (PF_START) GetProcAddress(d4, "VCI_StartCAN");
+        hR = (PF_RX)    GetProcAddress(d4, "VCI_Receive");
+        hT = (PF_TX)    GetProcAddress(d4, "VCI_Transmit");
+        hN = (PF_NUM)   GetProcAddress(d4, "VCI_GetReceiveNum");
+
+        printf("  OpenDevice -> %lu\n", hO(dev, 0, 0));
+        ZeroMemory(&c4, sizeof(c4));
+        c4.AccMask = 0xFFFFFFFF; c4.Filter = 1;
+        c4.Timing0 = 0x00; c4.Timing1 = 0x1C;
+        printf("  InitCAN -> %lu  StartCAN -> %lu\n\n",
+               hI(dev, 0, ch, &c4), hS(dev, 0, ch));
+
+        t0d = GetTickCount();
+        while ((int)(GetTickCount() - t0d) < secs * 1000) {
+            VCI_OBJ o;
+            DWORD r;
+            ZeroMemory(&o, sizeof(o));
+            o.ID = txId;
+            o.DataLen = 8;
+            o.Data[0] = (BYTE)(sent & 0xFF);
+            o.Data[1] = (BYTE)((sent >> 8) & 0xFF);
+            o.Data[2] = 0x5A; o.Data[3] = 0xA5;
+            r = hT(dev, 0, ch, &o, 1);
+            if (r == 1) sent++;
+            /* 顺便收一下回显，确认自己发出去的在总线上 */
+            {
+                VCI_OBJ buf[32];
+                DWORD g = hR(dev, 0, ch, buf, 32, 5);
+                recvN += (int)g;
+            }
+            Sleep(100);
+        }
+        printf("  共发送 %lu 帧，自己收到 %d 帧（含回显/对端）\n",
+               (unsigned long)sent, recvN);
+        if (hN) printf("  待收队列剩 %lu\n", (unsigned long)hN(dev, 0, ch));
+        hC(dev, 0);
+        return 0;
+    }
     if (argc >= 3 && strcmp(argv[2], "bothtx") == 0) {
         /* 两路同时：各发一帧，再同时读，验证互不阻塞、不串通道 */
         int secs3 = (argc >= 4) ? atoi(argv[3]) : 3;
