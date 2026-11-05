@@ -672,6 +672,9 @@ typedef struct {
 
 #define XL_SUCCESS                  0
 #define XL_BUS_TYPE_CAN             1
+/* 通道总线兼容性位（VxlApiModel.h 里有同名定义；桥不包含那个头，这里补一份） */
+#define XL_BUS_COMPATIBLE_CAN       0x00000001
+#define XL_BUS_ACTIVE_CAP_CAN       0x00010000
 #define XL_INTERFACE_VERSION_V3     3
 
 #define XL_ACTIVATE_NONE            0
@@ -1186,7 +1189,27 @@ static int ProbeKvaser(const wchar_t *dir)
       所以这里额外检查「有没有真正的 CAN 通道可用」，
       避免没插硬件时抢走别的后端。
 */
-static int ProbeVector(const wchar_t *dir)
+
+/* 大小写不敏感的子串查找（不引 shlwapi，保持零额外依赖） */
+static int ContainsNoCase(const char *hay, const char *needle)
+{
+    size_t nl, hl, i, j;
+    if (!hay || !needle) return 0;
+    nl = strlen(needle); hl = strlen(hay);
+    if (nl == 0 || hl < nl) return 0;
+    for (i = 0; i + nl <= hl; i++) {
+        for (j = 0; j < nl; j++) {
+            char a = hay[i + j], b = needle[j];
+            if (a >= 'A' && a <= 'Z') a = (char)(a - 'A' + 'a');
+            if (b >= 'A' && b <= 'Z') b = (char)(b - 'A' + 'a');
+            if (a != b) break;
+        }
+        if (j == nl) return 1;
+    }
+    return 0;
+}
+
+static int ProbeVector(const wchar_t *dir, int explicit_req)
 {
     HMODULE h = LoadNear(dir, L"vxlapi.dll");
     if (!h) { LogF("VECTOR: 找不到 vxlapi.dll"); return 0; }
@@ -1225,9 +1248,44 @@ static int ProbeVector(const wchar_t *dir)
             st = pXlCfg(cfg);
             if (st == XL_SUCCESS && cfg->channelCount <= 64) {
                 DWORD i;
+                int realHw = 0;
                 g_xlChanCount = (int)cfg->channelCount;
-                for (i = 0; i < cfg->channelCount; i++)
-                    g_xlAvailMask |= cfg->channel[i].channelMask;
+                g_xlAvailMask = 0;
+                /* ★ 关键：Vector 的"虚拟通道"不是硬件。
+                   判据：transceiverName / name 里含 "Virtual"。
+                   真 VN1630 的 transceiverName 是 "CANpiggy" 之类。 */
+                for (i = 0; i < cfg->channelCount; i++) {
+                    XLchannelConfig *c = &cfg->channel[i];
+                    int virt = ContainsNoCase(c->transceiverName, "virtual") ||
+                               ContainsNoCase(c->name, "virtual");
+                    if (virt) {
+                        LogF("VECTOR:   通道%lu \"%s\" 是虚拟通道，跳过",
+                             (unsigned long)i, c->name);
+                        continue;
+                    }
+                    realHw = 1;
+                    if (c->channelBusCapabilities & XL_BUS_COMPATIBLE_CAN)
+                        g_xlAvailMask |= c->channelMask;
+                    LogF("VECTOR:   通道%lu \"%s\" 真硬件 transceiver=\"%s\" mask=0x%I64X",
+                         (unsigned long)i, c->name, c->transceiverName,
+                         (unsigned long long)c->channelMask);
+                }
+                if (!g_xlAvailMask && explicit_req) {
+                    /* 显式要求 vector 时允许用虚拟通道（方便无硬件时调试） */
+                    for (i = 0; i < cfg->channelCount; i++)
+                        if (cfg->channel[i].channelBusCapabilities & XL_BUS_COMPATIBLE_CAN)
+                            g_xlAvailMask |= cfg->channel[i].channelMask;
+                    LogF("VECTOR: 显式指定 vector，允许使用虚拟通道 mask=0x%I64X",
+                         (unsigned long long)g_xlAvailMask);
+                }
+                if (!g_xlAvailMask) {
+                    LogF("VECTOR: 没有可用的真 Vector 通道（只有虚拟通道），跳过");
+                    free(cfg);
+                    pXlClose(); g_xlDriverOpen = 0;
+                    FreeLibrary(h);
+                    return 0;
+                }
+                (void)realHw;
                 LogF("VECTOR: 驱动 OK, 通道数 %lu, 可用 mask 0x%I64X, dllVer 0x%X",
                      (unsigned long)cfg->channelCount,
                      (unsigned long long)g_xlAvailMask,
@@ -1786,7 +1844,7 @@ static void SelectBackend(void)
         else if (_stricmp(want, "gcan") == 0)   { if (ProbeGcan(dir))   return; }
         else if (_stricmp(want, "tosun") == 0)  { if (ProbeTosun(dir))  return; }
         else if (_stricmp(want, "kvaser") == 0) { if (ProbeKvaser(dir)) return; }
-        else if (_stricmp(want, "vector") == 0) { if (ProbeVector(dir)) return; }
+        else if (_stricmp(want, "vector") == 0) { if (ProbeVector(dir, 1)) return; }
         else if (_stricmp(want, "zlg") == 0)    { if (ProbePassthrough(dir)) return; }
         /*
          ★ vci = 通用 VCI 兼容库（ControlCAN.dll / ECanVci.dll 这类）
@@ -1854,17 +1912,18 @@ static void SelectBackend(void)
            backend=vector
        就会走上面那条「配置指定后端」的分支，正常启用。
      */
-#if 0
-    if (FileNear(dir, L"vxlapi.dll") || DllLoadable(L"vxlapi.dll"))
-        { if (ProbeVector(dir)) return; }
-#endif
     if (ProbePcan(dir))   return;
     if (ProbeGcan(dir))   return;
     if (ProbeTosun(dir))  return;
     if (ProbeKvaser(dir)) return;
-#if 0
-    if (ProbeVector(dir)) return;
-#endif
+
+    /* ★ Vector：现在可以放进自动链了。
+       以前不敢放，是因为"虚拟通道"会让它抢走后端（perm=0，白耗时间）。
+       现在 ProbeVector 会用 transceiverName 判断虚拟/真硬件：
+         · 只有虚拟通道 → 自动跳过，绝不抢后端
+         · 有真 VN 系列 → 正常选中（真硬件 xlOpenPort 会拿到 perm）
+       显式写 backend=vector 时不看这个判断，虚拟通道也能用（方便调试）。 */
+    if (ProbeVector(dir, 0)) return;
 
     /* ★ 最后的兜底：原厂 DLL 透传 */
     if (ProbePassthrough(dir)) return;
