@@ -73,6 +73,56 @@ int main(int argc, char **argv)
     setvbuf(stdout, NULL, _IONBF, 0);
 
     dev  = (argc >= 2) ? (DWORD)atoi(argv[1]) : 21;
+    if (argc >= 3 && strcmp(argv[2], "both") == 0) {
+        /* 双通道同时读：用来判断"同一帧是否两路都收到" */
+        int secs2 = (argc >= 4) ? atoi(argv[3]) : 5;
+        DWORD t0b;
+        int c0 = 0, c1 = 0, k2;
+        HMODULE d2 = LoadLibraryA("USBCAN.dll");
+        PF_OPEN  fO; PF_INIT fI; PF_START fS; PF_RX fR; PF_NUM fN; PF_CLOSE fC;
+
+        printf("=== 双通道同时读  型号=%lu  %d 秒 ===\n\n", (unsigned long)dev, secs2);
+        if (!d2) { printf("  加载 USBCAN.dll 失败\n"); return 1; }
+        fO = (PF_OPEN)  GetProcAddress(d2, "VCI_OpenDevice");
+        fC = (PF_CLOSE) GetProcAddress(d2, "VCI_CloseDevice");
+        fI = (PF_INIT)  GetProcAddress(d2, "VCI_InitCAN");
+        fS = (PF_START) GetProcAddress(d2, "VCI_StartCAN");
+        fR = (PF_RX)    GetProcAddress(d2, "VCI_Receive");
+        fN = (PF_NUM)   GetProcAddress(d2, "VCI_GetReceiveNum");
+
+        printf("  OpenDevice -> %lu\n", fO(dev, 0, 0));
+        {
+            VCI_CFG cf;
+            ZeroMemory(&cf, sizeof(cf));
+            cf.AccMask = 0xFFFFFFFF; cf.Filter = 1;
+            cf.Timing0 = 0x00; cf.Timing1 = 0x1C;
+            printf("  InitCAN ch0 -> %lu   ch1 -> %lu\n",
+                   fI(dev, 0, 0, &cf), fI(dev, 0, 1, &cf));
+        }
+        printf("  StartCAN ch0 -> %lu  ch1 -> %lu\n\n",
+               fS(dev, 0, 0), fS(dev, 0, 1));
+
+        t0b = GetTickCount();
+        while ((int)(GetTickCount() - t0b) < secs2 * 1000) {
+            int c;
+            for (c = 0; c < 2; c++) {
+                VCI_OBJ buf[16];
+                DWORD got = fR(dev, 0, (DWORD)c, buf, 16, 20);
+                for (k2 = 0; k2 < (int)got && k2 < 16; k2++) {
+                    if (c == 0) c0++; else c1++;
+                    printf("  [ch%u] ID=0x%lX dlc=%u 数据=%02X %02X %02X %02X\n",
+                           (unsigned)c, (unsigned long)buf[k2].ID,
+                           (unsigned)buf[k2].DataLen,
+                           buf[k2].Data[0], buf[k2].Data[1],
+                           buf[k2].Data[2], buf[k2].Data[3]);
+                }
+            }
+            Sleep(10);
+        }
+        printf("\n  === ch0 共 %d 帧，ch1 共 %d 帧 ===\n", c0, c1);
+        fC(dev, 0);
+        return 0;
+    }
     ch   = (argc >= 3) ? (DWORD)atoi(argv[2]) : 0;
     secs = (argc >= 4) ? atoi(argv[3]) : 5;
 
@@ -100,6 +150,21 @@ int main(int argc, char **argv)
     cfg.Timing1 = 0x1C;      /* 500k（16MHz 时序表） */
     printf("  InitCAN(通道%lu) -> %lu\n", (unsigned long)ch, pInit(dev, 0, ch, &cfg));
     printf("  StartCAN(通道%lu) -> %lu\n\n", (unsigned long)ch, pStart(dev, 0, ch));
+
+    /* 第 4 个参数是 tx 时，先在本通道发一帧 —— 用来验证分流：
+       自己发的帧会被 Vector 回显，应该回到【同一个通道】。 */
+    if (argc >= 5 && strcmp(argv[4], "tx") == 0 && pTx) {
+        VCI_OBJ o;
+        DWORD n;
+        ZeroMemory(&o, sizeof(o));
+        o.ID = 0x1AB;
+        o.DataLen = 8;
+        o.Data[0] = 0xDE; o.Data[1] = 0xAD; o.Data[2] = 0xBE; o.Data[3] = 0xEF;
+        o.Data[4] = 0x55; o.Data[5] = 0xAA; o.Data[6] = 0x11; o.Data[7] = 0x22;
+        n = pTx(dev, 0, ch, &o, 1);
+        printf("  [发送测试] Transmit(通道%lu, ID=0x1AB) -> %lu\n",
+               (unsigned long)ch, (unsigned long)n);
+    }
 
     printf("  监听 %d 秒（对端在发就能看到）...\n", secs);
     t0 = GetTickCount();

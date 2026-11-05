@@ -689,7 +689,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-vector-bus"
+#define UNIVCI_BUILD_TAG            "2026-11-05-vector-2ch"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -877,7 +877,11 @@ static PF_xlSetApplConfig    pXlSetAppl = NULL;
 
 /* 每个可用 CAN 通道的硬件定位信息，xlSetApplConfig 要用。
    VN1630 有 4 个 CAN 口，逐个试，某个被占就换下一个。 */
-typedef struct { XLaccess mask; unsigned int hwType, hwIndex, hwChannel; } XLCANINFO;
+typedef struct {
+    XLaccess     mask;
+    unsigned int hwType, hwIndex, hwChannel;
+    unsigned int chanIndex;    /* Vector 通道索引，接收事件按它分流 */
+} XLCANINFO;
 #define XL_MAX_CAN_INFO 32
 static XLCANINFO g_xlCan[XL_MAX_CAN_INFO];
 static int       g_xlCanN = 0;
@@ -901,6 +905,11 @@ static int          g_xlDriverOpen = 0;
 static int          g_xlPortOpen = 0;    /* ★ port handle 可以是 0，不能拿它当标志 */
 static XLaccess     g_xlAvailMask = 0;
 static int          g_xlChanCount = 0;
+
+/* 多路映射：对外第 i 路（VCI 通道号）对应哪个 Vector 通道 */
+static int          g_xlUseN = 0;
+static XLaccess     g_xlUseMask[VCI_MAX_CHANNEL];
+static unsigned int g_xlUseIdx[VCI_MAX_CHANNEL];   /* Vector chanIndex */
 
 /*==========================================================================
   9. 工具
@@ -1311,6 +1320,7 @@ static int ProbeVector(const wchar_t *dir, int explicit_req)
                             g_xlCan[g_xlCanN].hwType    = c->hwType;
                             g_xlCan[g_xlCanN].hwIndex   = c->hwIndex;
                             g_xlCan[g_xlCanN].hwChannel = c->hwChannel;
+                            g_xlCan[g_xlCanN].chanIndex = c->channelIndex;
                             g_xlCanN++;
                         }
                     }
@@ -1336,6 +1346,7 @@ static int ProbeVector(const wchar_t *dir, int explicit_req)
                             g_xlCan[g_xlCanN].hwType    = c->hwType;
                             g_xlCan[g_xlCanN].hwIndex   = c->hwIndex;
                             g_xlCan[g_xlCanN].hwChannel = c->hwChannel;
+                            g_xlCan[g_xlCanN].chanIndex = c->channelIndex;
                             g_xlCanN++;
                         }
                     }
@@ -2301,6 +2312,7 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
         XLaccess perm = 0;
         XLstatus st;
         XLaccess mask;
+        int gotMulti = 0;   /* 组合 mask 已经打开（跳过单路重试） */
 
         if (!g_xlDriverOpen) {
             st = pXlOpen();
@@ -2337,6 +2349,61 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
            每一步都先 xlSetApplConfig 把口分配给本应用 ——
            Vector 的规矩：没分配过就永远拿不到 perm。
         */
+        /*
+         ★★ 第 0 步：组合 mask 优先（多路）★★
+
+           顺序是成败关键。Vector 只给【第一个】打开某通道的应用
+           init 权限，所以：
+             · 先开单路 → 占住一个通道，组合 mask 必然 perm=0
+             · 先关单路再开组合 → 通道还没释放，只肯给另一个
+             · 想回退 → 连单路都开不回来（实测过：整块设备打不开）
+
+           所以组合 mask 必须是【第一个】动作，此时一个通道都没占。
+           拿不到权限再走下面的单路三层重试，互不影响。
+         */
+        if (!g_xlWantChan) {
+            XLaccess wantMask = 0;
+            int wantN = 0, wc;
+
+            for (wc = 0; wc < g_xlCanN && wantN < 2; wc++) {
+                if (!(g_xlAvailMask & g_xlCan[wc].mask)) continue;
+                wantMask |= g_xlCan[wc].mask;
+                wantN++;
+            }
+
+            if (wantN > 1) {
+                XLportHandle phw = 0;
+                XLaccess pmw = wantMask;
+                XLstatus rw;
+
+                for (wc = 0; wc < g_xlCanN; wc++) {
+                    if (!(wantMask & g_xlCan[wc].mask)) continue;
+                    if (pXlSetAppl)
+                        pXlSetAppl(g_xlAppName, 0, g_xlCan[wc].hwType,
+                                   g_xlCan[wc].hwIndex, g_xlCan[wc].hwChannel,
+                                   XL_BUS_TYPE_CAN);
+                }
+                rw = pXlOpenPort(&phw, g_xlAppName, wantMask, &pmw, 8192,
+                                 XL_INTERFACE_VERSION_V3, XL_BUS_TYPE_CAN);
+                LogF("  Vector 多路优先: xlOpenPort(mask=0x%I64X, %d 路) -> %lu port=%lu perm=0x%I64X",
+                     (unsigned long long)wantMask, wantN,
+                     (unsigned long)rw, (unsigned long)phw,
+                     (unsigned long long)pmw);
+                if (rw == XL_SUCCESS && pmw != 0) {
+                    g_xlPort = phw;
+                    mask = pmw & wantMask;
+                    perm = mask;
+                    st = XL_SUCCESS;
+                    gotMulti = 1;
+                    LogF("  ★ 多路打开成功：mask=0x%I64X", (unsigned long long)mask);
+                } else {
+                    if (pXlClosePort && phw) pXlClosePort(phw);
+                    LogF("    多路没拿到权限，改走单路重试");
+                }
+            }
+        }
+
+        if (!gotMulti)
         {
             /*
              ★ 三层重试，把"猜"变成"试"：
@@ -2474,12 +2541,31 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
         }
         if (st != XL_SUCCESS) { goto L_FAIL; }
 
+        /* ★ 填「对外第几路 → VN 第几路」的映射表 */
+        g_xlUseN = 0;
+        {
+            int u;
+            for (u = 0; u < g_xlCanN && g_xlUseN < VCI_MAX_CHANNEL; u++) {
+                if (!(mask & g_xlCan[u].mask)) continue;
+                g_xlUseMask[g_xlUseN] = g_xlCan[u].mask;
+                g_xlUseIdx[g_xlUseN]  = g_xlCan[u].chanIndex;
+                LogF("  Vector 对外第 %d 路 ← VN1630A Channel %u（chanIndex=%u mask=0x%I64X）",
+                     g_xlUseN, g_xlCan[u].hwChannel + 1, g_xlCan[u].chanIndex,
+                     (unsigned long long)g_xlCan[u].mask);
+                g_xlUseN++;
+            }
+        }
+        if (g_xlUseN == 0 && perm) {
+            g_xlUseMask[0] = mask;
+            g_xlUseIdx[0]  = 0;
+            g_xlUseN = 1;
+        }
+
         g_xlMask = mask & (perm ? perm : mask);
         if (!g_xlMask) g_xlMask = mask;
         g_xlPortOpen = 1;
-        g_realChans = (g_xlChanCount > 0 && g_xlChanCount <= VCI_MAX_CHANNEL)
-                      ? g_xlChanCount : 1;
-        LogF("  Vector 实际通道 %d 路", g_realChans);
+        g_realChans = g_xlUseN > 0 ? g_xlUseN : 1;
+        LogF("  Vector 实际可用通道 %d 路", g_realChans);
         if (!perm) {
             /*
              ★ 权限为 0 就按失败处理，不能假成功。
@@ -3033,8 +3119,11 @@ __declspec(dllexport) DWORD __stdcall VCI_InitCAN(DWORD DeviceType,
         XLstatus xs;
         if (!g_opened || !g_xlPortOpen) { LeaveCriticalSection(&g_cs); return STATUS_ERR; }
 
+        /* 每路用自己那一份 mask（多路时不能都用 g_xlMask） */
+        XLaccess cm = (CANInd < (DWORD)g_xlUseN) ? g_xlUseMask[CANInd] : g_xlMask;
+
         /* 1) 已激活的话先取消（设波特率要求未激活） */
-        if (g_started[CANInd] && pXlDeactivate) pXlDeactivate(g_xlPort, g_xlMask);
+        if (g_started[CANInd] && pXlDeactivate) pXlDeactivate(g_xlPort, cm);
 
         /*
          2) 设波特率。
@@ -3043,7 +3132,7 @@ __declspec(dllexport) DWORD __stdcall VCI_InitCAN(DWORD DeviceType,
            这里只告警、不硬失败 —— 否则 ZCANPRO 会直接打不开设备。
            真插了 Vector 硬件并且分配了通道，这一步会正常成功。
         */
-        xs = pXlSetBitrate(g_xlPort, g_xlMask, (DWORD)rate);
+        xs = pXlSetBitrate(g_xlPort, cm, (DWORD)rate);
         if (xs == XL_SUCCESS) {
             LogF("  Vector xlCanSetChannelBitrate(%lu) -> OK",
                  (unsigned long)rate);
@@ -3054,13 +3143,15 @@ __declspec(dllexport) DWORD __stdcall VCI_InitCAN(DWORD DeviceType,
                  "要在 Vector Hardware Config 里分配本通道并设好波特率");
         }
 
-        /* 3) 激活首通道 */
-        if (CANInd == 0) {
-            xs = pXlActivate(g_xlPort, g_xlMask, XL_BUS_TYPE_CAN,
-                             XL_ACTIVATE_RESET_CLOCK);
-            LogF("  Vector xlActivateChannel -> %lu", (unsigned long)xs);
-            if (xs != XL_SUCCESS) { LeaveCriticalSection(&g_cs); return STATUS_ERR; }
-        }
+        /*
+         3) 激活【本通道】。
+           以前只在 CANInd==0 时激活且用整体 mask，多路时第二路永远激活不了。
+        */
+        xs = pXlActivate(g_xlPort, cm, XL_BUS_TYPE_CAN,
+                         XL_ACTIVATE_RESET_CLOCK);
+        LogF("  Vector xlActivateChannel(ch=%lu mask=0x%I64X) -> %lu",
+             (unsigned long)CANInd, (unsigned long long)cm, (unsigned long)xs);
+        if (xs != XL_SUCCESS) { LeaveCriticalSection(&g_cs); return STATUS_ERR; }
         g_started[CANInd] = 1;
         LeaveCriticalSection(&g_cs);
         return STATUS_OK;
@@ -3281,6 +3372,74 @@ static int PcanPump(DWORD CANInd)
  注意 WaitTime 一律用 0：这里只想把已经在队列里的帧取出来，
  不能阻塞（阻塞会让上层的轮询卡住）。
  */
+/*
+ ★ Vector 接收泵：xlReceive 一次抽干所有通道的事件，
+   按事件里的 chanIndex 分流到各路的桥内缓冲。
+
+   为什么必须分流：一个 port 管多通道时，xlReceive 返回的是
+   【所有通道混在一起】的事件流。若只为某一路取帧，
+   其它通道的帧当场就被丢掉了。
+*/
+static void VxlRxPump(void)
+{
+    static unsigned char evbuf[128 * 64];
+    unsigned int n, k;
+    XLstatus xs;
+
+    if (!g_xlPortOpen || !pXlReceiveFn || !g_opened) return;
+
+    n = 128;
+    ZeroMemory(evbuf, sizeof(evbuf));
+    xs = pXlReceiveFn(g_xlPort, &n, (XLevent *)evbuf);
+    if (xs == XL_ERR_QUEUE_IS_EMPTY) return;
+    if (xs != XL_SUCCESS) return;
+
+    for (k = 0; k < n && k < 128; k++) {
+        unsigned char *e = evbuf + (size_t)k * 48;   /* sizeof(XLevent) = 48 */
+        unsigned char tag = e[0];
+
+        if (tag == XL_CHIP_STATE) {
+            g_xlChipState = e[16];
+            g_xlTxErr = e[17];
+            g_xlRxErr = e[18];
+            LogF("  Vector 总线状态: busStatus=%u (%s) TEC=%u REC=%u",
+                 (unsigned)e[16],
+                 e[16] == 0 ? "正常" : e[16] == 1 ? "★ 总线关闭 BUSOFF" :
+                 e[16] == 2 ? "错误主动" : e[16] == 3 ? "★ 错误被动" : "?",
+                 (unsigned)e[17], (unsigned)e[18]);
+            continue;
+        }
+        if (tag != XL_RECEIVE_MSG) continue;
+
+        {
+            int vci = -1, j;
+            for (j = 0; j < g_xlUseN; j++)
+                if (g_xlUseIdx[j] == (unsigned int)e[1]) { vci = j; break; }
+            if (vci < 0) continue;
+            if (g_vciRxN[vci] >= VCI_RXBUF) continue;
+
+            {
+                VCI_CAN_OBJ o;
+                unsigned long id = *(unsigned long *)(e + 16);
+                unsigned short fl = *(unsigned short *)(e + 20);
+                unsigned short dlc = *(unsigned short *)(e + 22);
+
+                ZeroMemory(&o, sizeof(o));
+                o.ID = id & 0x1FFFFFFF;
+                o.ExternFlag = (id & XL_CAN_EXT_MSG_ID) ? 1 : 0;
+                o.RemoteFlag = (fl & XL_CAN_MSG_FLAG_REMOTE_FRAME) ? 1 : 0;
+                o.DataLen = dlc > 8 ? 8 : (BYTE)dlc;
+                memcpy(o.Data, e + 32, 8);
+                o.TimeStamp = (DWORD)(*(XLuint64 *)(e + 8) & 0xFFFFFFFF);
+                o.TimeFlag = 1;
+
+                CtFromVciObj(&o, &g_vciRx[vci][g_vciRxN[vci]], vci);
+                g_vciRxN[vci]++;
+            }
+        }
+    }
+}
+
 static int VciPump(DWORD CANInd, int budget)
 {
     int n = 0;
@@ -3355,6 +3514,10 @@ __declspec(dllexport) DWORD __stdcall VCI_GetReceiveNum(DWORD DeviceType,
            空转 Receive。
          */
         r = (DWORD)PcanPump(CANInd);
+    } else if (g_backend == BE_VECTOR) {
+        /* 以前硬编码 1，上层一直空转；现在先抽进缓冲再报真实数 */
+        VxlRxPump();
+        if (CANInd < VCI_MAX_CHANNEL) r = (DWORD)g_vciRxN[CANInd];
     } else {
         r = 1;   /* 其它后端无法预读数量 */
     }
@@ -3453,7 +3616,8 @@ __declspec(dllexport) DWORD __stdcall VCI_Transmit(DWORD DeviceType, DWORD Devic
                 memcpy(m->data, pSend[i].Data, 8);
             }
             n = Len;
-            xs = pXlTransmit(g_xlPort, g_xlMask, &n, ev);
+            XLaccess tm = (CANInd < (DWORD)g_xlUseN) ? g_xlUseMask[CANInd] : g_xlMask;
+            xs = pXlTransmit(g_xlPort, tm, &n, ev);
             if (xs == XL_SUCCESS) r = Len;
             LogF("  Vector xlCanTransmit(%lu 帧) -> %lu, 已发 %lu",
                  (unsigned long)Len, (unsigned long)xs, (unsigned long)r);
@@ -3616,10 +3780,44 @@ __declspec(dllexport) DWORD __stdcall VCI_Receive(DWORD DeviceType, DWORD Device
     }
     case BE_VECTOR: {
         /*
-         xlReceive 返回的是事件流，里面混着报文/芯片状态/发送确认。
-         只取 tag==XL_RECEIVE_MSG 的，其余丢掉。
+         ★ 从桥内缓冲取（和 PCAN/VCI 一致）。
+
+           多路时一个 port 管所有通道，xlReceive 一次就把所有通道的
+           事件都取走了；只为某一路取帧，其它通道的帧会当场丢掉。
+           所以先 VxlRxPump 分流，再按 CANInd 取。
         */
-        if (g_xlPortOpen && pXlReceiveFn) {
+        if (g_xlPortOpen) {
+            int ch3 = (int)CANInd;
+            if (ch3 >= 0 && ch3 < VCI_MAX_CHANNEL) {
+                DWORD got = 0;
+                VxlRxPump();
+                if (g_vciRxN[ch3] == 0 && WaitTime > 0) {
+                    int waited = 0, cap = WaitTime > 200 ? 200 : WaitTime;
+                    while (g_vciRxN[ch3] == 0 && waited < cap) {
+                        Sleep(1); waited++;
+                        VxlRxPump();
+                    }
+                }
+                while (got < Len && g_vciRxN[ch3] > 0) {
+                    int i3;
+                    CtToVciObj(&g_vciRx[ch3][0], &pRecv[got]);
+                    got++;
+                    for (i3 = 1; i3 < g_vciRxN[ch3]; i3++)
+                        g_vciRx[ch3][i3 - 1] = g_vciRx[ch3][i3];
+                    g_vciRxN[ch3]--;
+                }
+                r = got;
+                if (r > 0) {
+                    g_rxCount[CANInd] += r;
+                    if (g_rxCount[CANInd] <= 20 || (g_rxCount[CANInd] % 200) == 0)
+                        LogF("  VCI 接收 ch=%lu 本次%lu 帧 ID=0x%lX（累计 %lu）",
+                             (unsigned long)CANInd, (unsigned long)r,
+                             (unsigned long)pRecv[0].ID,
+                             (unsigned long)g_rxCount[CANInd]);
+                }
+            }
+        }
+        if (0) {
             XLevent evs[128];
             unsigned int n = (Len > 128) ? 128 : (unsigned int)Len;
             XLstatus xs;
