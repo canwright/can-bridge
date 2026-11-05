@@ -73,6 +73,86 @@ int main(int argc, char **argv)
     setvbuf(stdout, NULL, _IONBF, 0);
 
     dev  = (argc >= 2) ? (DWORD)atoi(argv[1]) : 21;
+    if (argc >= 3 && strcmp(argv[2], "filter") == 0) {
+        /*
+         filter 模式：验证验收滤波是否真的生效。
+             ch1 关掉滤波，轮流发 0x100 / 0x110 / 0x120
+             ch0 按命令行给的 AccCode/AccMask 滤波，看能收到哪些
+         用法：VciListen.exe 21 filter [code] [mask] [秒数]
+               code/mask 都是十六进制，不填默认全收
+         */
+        HMODULE d9 = LoadLibraryA("USBCAN.dll");
+        PF_OPEN  fO; PF_INIT fI; PF_START fS; PF_RX fR; PF_TX fT; PF_CLOSE fC;
+        VCI_CFG cA, cB;
+        DWORD code = (argc >= 4) ? (DWORD)strtoul(argv[3], NULL, 16) : 0;
+        DWORD mask = (argc >= 5) ? (DWORD)strtoul(argv[4], NULL, 16) : 0xFFFFFFFFu;
+        int secsF = (argc >= 6) ? atoi(argv[5]) : 4;
+        DWORD t0f, ids[3];
+        int got[3] = {0,0,0}, k, n = 0;
+
+        ch = 0;
+        ids[0] = 0x100; ids[1] = 0x110; ids[2] = 0x120;
+        printf("=== 验收滤波验证 ===\n");
+        printf("  ch0 滤波: AccCode=0x%lX  AccMask=0x%lX\n", (unsigned long)code, (unsigned long)mask);
+        printf("  ch1 发:   0x100 / 0x110 / 0x120 轮流\n\n");
+        if (!d9) { printf("  加载失败\n"); return 1; }
+        fO = (PF_OPEN)  GetProcAddress(d9, "VCI_OpenDevice");
+        fC = (PF_CLOSE) GetProcAddress(d9, "VCI_CloseDevice");
+        fI = (PF_INIT)  GetProcAddress(d9, "VCI_InitCAN");
+        fS = (PF_START) GetProcAddress(d9, "VCI_StartCAN");
+        fR = (PF_RX)    GetProcAddress(d9, "VCI_Receive");
+        fT = (PF_TX)    GetProcAddress(d9, "VCI_Transmit");
+
+        printf("  OpenDevice -> %lu\n", fO(dev, 0, 0));
+        ZeroMemory(&cA, sizeof(cA));
+        cA.AccCode = code; cA.AccMask = mask; cA.Filter = 0;
+        cA.Timing0 = 0x00; cA.Timing1 = 0x1C;
+        ZeroMemory(&cB, sizeof(cB));
+        cB.AccCode = 0; cB.AccMask = 0xFFFFFFFF; cB.Filter = 0;
+        cB.Timing0 = 0x00; cB.Timing1 = 0x1C;
+        {
+            DWORD r0 = fI(dev, 0, 0, &cA);
+            DWORD r1 = fI(dev, 0, 1, &cB);
+            printf("  InitCAN ch0(滤波) -> %lu  ch1(全收) -> %lu\n", (unsigned long)r0, (unsigned long)r1);
+        }
+        {
+            DWORD s0 = fS(dev, 0, 0);
+            DWORD s1 = fS(dev, 0, 1);
+            printf("  StartCAN ch0 -> %lu  ch1 -> %lu\n\n", (unsigned long)s0, (unsigned long)s1);
+        }
+
+        t0f = GetTickCount();
+        while ((int)(GetTickCount() - t0f) < secsF * 1000) {
+            VCI_OBJ t, buf[32];
+            DWORD g;
+            ZeroMemory(&t, sizeof(t));
+            t.ID = ids[n % 3]; t.DataLen = 2; t.Data[0] = (BYTE)n;
+            fT(dev, 0, 1, &t, 1);        /* 从 ch1 发 */
+            n++;
+            Sleep(20);
+            g = fR(dev, 0, 0, buf, 32, 20);   /* 从 ch0 收（带滤波） */
+            for (k = 0; k < (int)g && k < 32; k++) {
+                if (buf[k].ID == 0x100) got[0]++;
+                else if (buf[k].ID == 0x110) got[1]++;
+                else if (buf[k].ID == 0x120) got[2]++;
+            }
+        }
+
+        printf("  ch0 收到:  0x100 × %d   0x110 × %d   0x120 × %d\n\n", got[0], got[1], got[2]);
+        if (mask == 0xFFFFFFFFu) {
+            if (got[0] && got[1] && got[2]) printf("  ✅ 全收模式：三个 ID 都进来了（默认行为不变）\n");
+            else printf("  · 有些 ID 没收到（可能是时序问题）\n");
+        } else {
+            if (got[0] && !got[1] && !got[2])
+                printf("  ✅ 滤波生效：只放过 0x100，0x110/0x120 被挡掉了\n");
+            else if (got[0] && got[1] && got[2])
+                printf("  ★ 滤波没生效：三个 ID 全进来了\n");
+            else
+                printf("  · 结果不符合预期，看日志\n");
+        }
+        fC(dev, 0);
+        return 0;
+    }
     if (argc >= 3 && strcmp(argv[2], "status") == 0) {
         /* 读 VCI_ReadErrInfo / VCI_ReadCANStatus，验证错误状态与位时序回传 */
         HMODULE d8 = LoadLibraryA("USBCAN.dll");

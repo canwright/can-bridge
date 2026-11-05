@@ -689,7 +689,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-errinfo"
+#define UNIVCI_BUILD_TAG            "2026-11-05-filter"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -912,6 +912,14 @@ static int       g_recCh[VCI_MAX_CHANNEL];
 static unsigned  g_timing0Ch[VCI_MAX_CHANNEL];
 static unsigned  g_timing1Ch[VCI_MAX_CHANNEL];
 static unsigned  g_baudCh[VCI_MAX_CHANNEL];
+/*
+ ★ 每通道的验收码/屏蔽码（ZLG 语义：mask 的位为 1 表示"不关心"）。
+   mask = 0xFFFFFFFF 时 ~mask = 0，任何 id 都通过 —— 等于全收，
+   所以"没设滤波"的软件行为完全不变。
+*/
+static unsigned  g_filtCode[VCI_MAX_CHANNEL];
+static unsigned  g_filtMask[VCI_MAX_CHANNEL];
+static unsigned  g_filtDrop[VCI_MAX_CHANNEL];   /* 被滤掉的帧数 */
 static const char *g_xlAppName = "UniVciBridge";
 /* 用户指定用第几路 Vector 硬件通道（1 起）。0 = 自动挑第一个有权限的 */
 static int g_xlWantChan = 0;
@@ -3149,6 +3157,18 @@ __declspec(dllexport) DWORD __stdcall VCI_InitCAN(DWORD DeviceType,
             g_timing0Ch[CANInd] = pInit ? pInit->Timing0 : 0;
             g_timing1Ch[CANInd] = pInit ? pInit->Timing1 : 0;
             g_baudCh[CANInd] = (unsigned)rate;
+
+            /* 记下滤波参数，接收时按 ZLG 语义判定 */
+            g_filtCode[CANInd] = pInit ? pInit->AccCode : 0;
+            g_filtMask[CANInd] = pInit ? pInit->AccMask : 0xFFFFFFFFu;
+            g_filtDrop[CANInd] = 0;
+            if (pInit && (g_filtMask[CANInd] & 0x1FFFFFFFu) != 0x1FFFFFFFu) {
+                LogF("  ★ 滤波已生效 ch=%lu: AccCode=0x%lX AccMask=0x%lX"
+                     "（只放行 (id & ~mask) == (code & ~mask) 的帧）",
+                     (unsigned long)CANInd,
+                     (unsigned long)g_filtCode[CANInd],
+                     (unsigned long)g_filtMask[CANInd]);
+            }
         }
 
         /* 1) 已激活的话先取消（设波特率要求未激活） */
@@ -3459,6 +3479,27 @@ static void VxlRxPump(void)
             for (j = 0; j < g_xlUseN; j++)
                 if (g_xlUseIdx[j] == (unsigned int)e[1]) { vci = j; break; }
             if (vci < 0) continue;
+
+            /* ★ 滤波判定：mask 的位为 1 = 不关心，为 0 = 参与比较 */
+            {
+                unsigned long fid = *(unsigned long *)(e + 16) & 0x1FFFFFFFUL;
+                unsigned fmask, fcode;
+                if (vci < VCI_MAX_CHANNEL) {
+                    fmask = g_filtMask[vci] & 0x1FFFFFFFu;
+                    fcode = g_filtCode[vci] & 0x1FFFFFFFu;
+                    if ((fid & ~fmask) != (fcode & ~fmask)) {
+                        g_filtDrop[vci]++;
+                        if ((g_filtDrop[vci] % 500) == 1) {
+                            static int filtLogN = 0;
+                            if (filtLogN++ < 6)
+                                LogF("  滤波丢弃 ch=%d 累计 %lu 帧（最后一个 id=0x%lX）",
+                                     vci, (unsigned long)g_filtDrop[vci], fid);
+                        }
+                        continue;
+                    }
+                }
+            }
+
             if (g_vciRxN[vci] >= VCI_RXBUF) continue;
 
             {
