@@ -689,7 +689,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-vector-2ch"
+#define UNIVCI_BUILD_TAG            "2026-11-05-ts"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -3358,7 +3358,8 @@ static int PcanPump(DWORD CANInd)
             VCI_CAN_OBJ *o = &g_pcanRx[k][c];
             ZeroMemory(o, sizeof(*o));
             o->ID = m.ID;
-            o->TimeStamp = ts.millis;
+            /* PCAN 给的是毫秒 → 0.1 毫秒 */
+            o->TimeStamp = (DWORD)(ts.millis * 10);
             o->TimeFlag = 1;
             o->SendType = 0;
             o->RemoteFlag = (m.MSGTYPE & 0x01) ? 1 : 0;
@@ -3441,7 +3442,19 @@ static void VxlRxPump(void)
                 o.RemoteFlag = (fl & XL_CAN_MSG_FLAG_REMOTE_FRAME) ? 1 : 0;
                 o.DataLen = dlc > 8 ? 8 : (BYTE)dlc;
                 memcpy(o.Data, e + 32, 8);
-                o.TimeStamp = (DWORD)(*(XLuint64 *)(e + 8) & 0xFFFFFFFF);
+                /*
+                 ★ Vector 的 timeStamp 是 64 位【纳秒】。
+
+                   原来写成 (DWORD)(纳秒 & 0xFFFFFFFF) —— 低 32 位纳秒
+                   每 4.29 秒就回绕一次，传给 ZCANPRO 后时间戳往回跳，
+                   看起来就是"时间戳很垃圾"。
+
+                   现在按纳秒算成 0.1 毫秒再赋给 VCI 字段，32 位可撑 119 小时。
+                 */
+                {
+                    XLuint64 ns = *(XLuint64 *)(e + 8);
+                    o.TimeStamp = (DWORD)(ns / 100000ULL);
+                }
                 o.TimeFlag = 1;
 
                 CtFromVciObj(&o, &g_vciRx[vci][g_vciRxN[vci]], vci);
@@ -3757,7 +3770,8 @@ __declspec(dllexport) DWORD __stdcall VCI_Receive(DWORD DeviceType, DWORD Device
                     pRecv[i].ExternFlag = (buf[i].FProperties & 0x04) ? 1 : 0;
                     pRecv[i].RemoteFlag = (buf[i].FProperties & 0x02) ? 1 : 0;
                     memcpy(pRecv[i].Data, buf[i].FData, 8);
-                    pRecv[i].TimeStamp = (DWORD)(buf[i].FTimeUs / 1000);
+                    /* 厂家库给的是微秒 → 0.1 毫秒 */
+                    pRecv[i].TimeStamp = (DWORD)(buf[i].FTimeUs / 100);
                     pRecv[i].TimeFlag = 1;
                     r++;
                 }
@@ -3782,7 +3796,8 @@ __declspec(dllexport) DWORD __stdcall VCI_Receive(DWORD DeviceType, DWORD Device
                 pRecv[i].ExternFlag = (fl & K_MSG_EXT) ? 1 : 0;
                 pRecv[i].RemoteFlag = (fl & K_MSG_RTR) ? 1 : 0;
                 memcpy(pRecv[i].Data, data, 8);
-                pRecv[i].TimeStamp = ts;
+                /* Kvaser 给的是毫秒 → 0.1 毫秒 */
+                pRecv[i].TimeStamp = (DWORD)(ts * 10);
                 pRecv[i].TimeFlag = 1;
                 r++;
             }
@@ -3872,7 +3887,7 @@ __declspec(dllexport) DWORD __stdcall VCI_Receive(DWORD DeviceType, DWORD Device
                         (m->flags & XL_CAN_MSG_FLAG_REMOTE_FRAME) ? 1 : 0;
                     pRecv[r].DataLen = m->dlc > 8 ? 8 : (BYTE)m->dlc;
                     memcpy(pRecv[r].Data, m->data, 8);
-                    pRecv[r].TimeStamp = (DWORD)(evs[k].timeStamp & 0xFFFFFFFF);
+                    pRecv[r].TimeStamp = (DWORD)(evs[k].timeStamp / 100000ULL);
                     pRecv[r].TimeFlag = 1;
                     r++;
                 }

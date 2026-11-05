@@ -37,7 +37,12 @@ static void CtFromVciObj(const VCI_CAN_OBJ *o, CtFrame *f, int bus)
     f->dir  = CT_DIR_RX;
     f->bus_kind = CT_BUS_CAN;
     f->bus  = (CtU8)(bus < 0 ? 0 : bus);
-    f->ts_ns = o->TimeFlag ? ((CtU64)o->TimeStamp * 1000000ULL) : 0ULL;
+    /*
+       VCI_CAN_OBJ.TimeStamp 的单位是 0.1 毫秒（ZLG 的约定），
+       不是毫秒 —— 这里换成纳秒进模型：0.1ms = 100000ns。
+       之前按毫秒算（*1000000），所有时间戳都大了 10 倍。
+     */
+    f->ts_ns = o->TimeFlag ? ((CtU64)o->TimeStamp * 100000ULL) : 0ULL;
     if (f->len) memcpy(f->data, o->Data, (size_t)f->len);
 }
 
@@ -52,7 +57,8 @@ static void CtToVciObj(const CtFrame *f, VCI_CAN_OBJ *o)
     o->ExternFlag = f->ext ? 1 : 0;
     o->RemoteFlag = (f->kind == CT_FRAME_REMOTE) ? 1 : 0;
     o->DataLen    = (BYTE)(f->len > 8 ? 8 : f->len);
-    o->TimeStamp  = (DWORD)(f->ts_ns / 1000000ULL);
+    /* 纳秒 → 0.1 毫秒 */
+    o->TimeStamp  = (DWORD)(f->ts_ns / 100000ULL);
     o->TimeFlag   = f->ts_ns ? 1 : 0;
     o->SendType   = 0;
     if (o->DataLen) memcpy(o->Data, f->data, o->DataLen);

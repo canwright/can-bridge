@@ -73,6 +73,91 @@ int main(int argc, char **argv)
     setvbuf(stdout, NULL, _IONBF, 0);
 
     dev  = (argc >= 2) ? (DWORD)atoi(argv[1]) : 21;
+    if (argc >= 3 && strcmp(argv[2], "unit") == 0) {
+        /*
+         unit 模式：每 1000ms 发一帧，记录【墙上时间】和【报文时间戳】，
+         事后就能精确算出 VCI TimeStamp 的单位到底是 0.1ms / ms / 其他。
+         用法：VciListen.exe 21 unit [帧数]
+         */
+        int nf = (argc >= 4) ? atoi(argv[3]) : 6;
+        HMODULE d6;
+        /*
+         ★ ch 在这个分支里还没被赋值（下面那行 ch = atoi(argv[2]) 在特殊模式之后），
+           之前直接用 ch 拿到的是栈上的垃圾值 —— 日志里出现"通道 21 / 通道 -20"。
+           这里显式指定。
+         */
+        ch  = (argc >= 5) ? (DWORD)atoi(argv[4]) : 0;
+        d6 = LoadLibraryA("USBCAN.dll");
+        PF_OPEN  uO; PF_INIT uI; PF_START uS; PF_RX uR; PF_TX uT; PF_CLOSE uC;
+        VCI_CFG c6;
+        int f;
+        LARGE_INTEGER freq, t0, tn;
+        double lastWall = 0;
+        DWORD lastTs = 0;
+        int first = 1;
+
+        printf("=== 时间戳单位标定  每 1000ms 发一帧  共 %d 帧 ===\n\n", nf);
+        if (!d6) { printf("  加载失败\n"); return 1; }
+        uO = (PF_OPEN)  GetProcAddress(d6, "VCI_OpenDevice");
+        uC = (PF_CLOSE) GetProcAddress(d6, "VCI_CloseDevice");
+        uI = (PF_INIT)  GetProcAddress(d6, "VCI_InitCAN");
+        uS = (PF_START) GetProcAddress(d6, "VCI_StartCAN");
+        uR = (PF_RX)    GetProcAddress(d6, "VCI_Receive");
+        uT = (PF_TX)    GetProcAddress(d6, "VCI_Transmit");
+
+        QueryPerformanceFrequency(&freq);
+        printf("  OpenDevice -> %lu\n", uO(dev, 0, 0));
+        ZeroMemory(&c6, sizeof(c6));
+        c6.AccMask = 0xFFFFFFFF; c6.Filter = 1; c6.Timing0 = 0x00; c6.Timing1 = 0x1C;
+        /*
+         ★ 必须把另一个通道也开起来当 ACK 对端。
+
+           CAN 没有其他节点应答时，发送不会完成，也就收不到自己的回显 ——
+           上一版只开了 ch，结果全是"没收到自己的帧"。
+         */
+        uI(dev, 0, ch, &c6); uS(dev, 0, ch);
+        uI(dev, 0, 1 - ch, &c6); uS(dev, 0, 1 - ch);
+        QueryPerformanceCounter(&t0);
+        printf("  墙上时间(s)   报文时间戳   差值(单位)   单位换算\n\n");
+
+        for (f = 0; f < nf; f++) {
+            VCI_OBJ t, buf[32];
+            DWORD g;
+            double wall;
+            QueryPerformanceCounter(&tn);
+            wall = (double)(tn.QuadPart - t0.QuadPart) / (double)freq.QuadPart;
+
+            ZeroMemory(&t, sizeof(t));
+            t.ID = 0x1AB; t.DataLen = 2; t.Data[0] = (BYTE)f;
+            uT(dev, 0, ch, &t, 1);
+            Sleep(30);
+            g = uR(dev, 0, ch, buf, 32, 100);
+            if (g > 0) {
+                DWORD ts = buf[g - 1].TimeStamp;
+                if (!first) {
+                    double dw = wall - lastWall;
+                    long dt = (long)(ts - lastTs);
+                    printf("  %8.3f      %10lu   %10ld   %.1f 单位/毫秒\n",
+                           wall, (unsigned long)ts, dt,
+                           dw > 0 ? (double)dt / (dw * 1000.0) : 0.0);
+                } else {
+                    printf("  %8.3f      %10lu   (首帧)\n", wall, (unsigned long)ts);
+                    first = 0;
+                }
+                lastWall = wall; lastTs = ts;
+            } else {
+                printf("  %8.3f      (没收到自己的帧)\n", wall);
+            }
+            Sleep(970);
+        }
+        printf("\n  判读：上面最后一列（单位/毫秒）如果是\n");
+        printf("     10   → 单位是 0.1 毫秒\n");
+        printf("      1   → 单位是 毫秒\n");
+        printf("   1000   → 单位是 微秒\n");
+        printf(" 1000000  → 单位是 纳秒\n");
+        uC(dev, 0);
+        return 0;
+    }
     if (argc >= 3 && strcmp(argv[2], "cross") == 0) {
         /*
          cross 模式：在通道 0 发，然后同时读两个通道。
@@ -136,10 +221,14 @@ int main(int argc, char **argv)
                     DWORD kk;
                     for (kk = 0; kk < n && kk < 32; kk++) {
                         if (buf[kk].ID != idX) continue;
-                        if (c == 0) { c0x++; if (!seen0) { seen0 = 1;
-                            printf("  [ch0] 首帧 数据=%02X %02X\n", buf[kk].Data[0], buf[kk].Data[1]); } }
-                        else        { c1x++; if (!seen1) { seen1 = 1;
-                            printf("  [ch1] 首帧 数据=%02X %02X\n", buf[kk].Data[0], buf[kk].Data[1]); } }
+                        if (c == 0) { c0x++; if (c0x <= 60)
+                            printf("  [ch0] ts=%lu 数据=%02X %02X\n",
+                                   (unsigned long)buf[kk].TimeStamp,
+                                   buf[kk].Data[0], buf[kk].Data[1]); }
+                        else        { c1x++; if (c1x <= 60)
+                            printf("  [ch1] ts=%lu 数据=%02X %02X\n",
+                                   (unsigned long)buf[kk].TimeStamp,
+                                   buf[kk].Data[0], buf[kk].Data[1]); }
                     }
                 }
                 Sleep(3);
@@ -385,8 +474,9 @@ int main(int argc, char **argv)
         got = pRx(dev, 0, ch, rx, 64, 100);
         for (k = 0; k < (int)got && k < 64; k++) {
             total++;
-            printf("  [%d] ID=0x%lX  dlc=%u  数据=%02X %02X %02X %02X %02X %02X %02X %02X %s%s\n",
-                   total, (unsigned long)rx[k].ID, (unsigned)rx[k].DataLen,
+            printf("  [%d] ts=%lu  ID=0x%lX  dlc=%u  数据=%02X %02X %02X %02X %02X %02X %02X %02X %s%s\n",
+                   total, (unsigned long)rx[k].TimeStamp,
+                   (unsigned long)rx[k].ID, (unsigned)rx[k].DataLen,
                    rx[k].Data[0], rx[k].Data[1], rx[k].Data[2], rx[k].Data[3],
                    rx[k].Data[4], rx[k].Data[5], rx[k].Data[6], rx[k].Data[7],
                    rx[k].ExternFlag ? "[扩展]" : "",
