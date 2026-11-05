@@ -686,7 +686,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-vector-perm"
+#define UNIVCI_BUILD_TAG            "2026-11-05-vector-perm2"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -2375,10 +2375,18 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
                这种情况下 xlCanTransmit 必然失败，没有任何可用性。
              */
             LogF("  ★ Vector 权限为 0，按【失败】处理");
-            LogF("     桥已自动尝试了 xlSetApplConfig 分配通道，仍失败说明：");
-            LogF("       ① 通道被别的程序占着 → 关掉 CANoe / CANape / CANalyser");
-            LogF("       ② 需要在 Vector Hardware Manager 里手动分配");
-            LogF("          Application 列表里找 \"%s\" 并指派一个通道", g_xlAppName);
+            LogF("     桥已自动调 xlSetApplConfig 把 4 个通道都分配给 \"%s\"，", g_xlAppName);
+            LogF("     分配全部成功但仍然拿不到 init 权限 —— 几乎可以肯定：");
+            LogF("       通道被【别的程序】占着 init 访问权。");
+            LogF("       Vector 规矩：同一个通道只有第一个打开它的应用能拿 init。");
+            LogF("       最常见的就是 CANape 的后台录制服务，它一直占着硬件。");
+            LogF("");
+            LogF("     ★ 处理（按顺序）：");
+            LogF("       ① 用管理员运行本目录的「释放Vector通道.bat」");
+            LogF("          （它会停掉 CANapeRecordingService 并关掉 CANape/CANoe）");
+            LogF("       ② 或者手动：任务管理器里结束 CANapeRecordingService");
+            LogF("       ③ 再打开 ZCANPRO 重试");
+            LogF("       ④ 还不行 → Vector Hardware Manager 里把通道指派给 \"%s\"", g_xlAppName);
             if (pXlClosePort && g_xlPort) pXlClosePort(g_xlPort);
             g_xlPort = 0;
             g_xlPortOpen = 0;
