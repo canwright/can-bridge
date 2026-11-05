@@ -7,7 +7,7 @@ if errorlevel 1 exit /b 1
 if not exist out mkdir out
 REM fake PCANBasic.dll facade
 echo [INFO] building PCANBasic.dll ...
-cl /nologo /O2 /W3 /utf-8 /D_CRT_SECURE_NO_WARNINGS /Fo:out\ PcanShim.c /Fe:out\PCANBasic.dll /LD /link /DEF:PcanShim.def
+cl /nologo /O2 /W3 /utf-8 /D_CRT_SECURE_NO_WARNINGS /Fo:out\ PcanShim.c /Fe:out\PCANBasic.dll /LD /link /DEF:PcanShim.def /Brepro
 if errorlevel 1 (
     echo [ERROR] build failed
     exit /b 1

@@ -7,7 +7,7 @@ if errorlevel 1 exit /b 1
 if not exist out mkdir out
 REM GUI one-click tool
 echo [INFO] building OneClick.exe ...
-cl /nologo /O2 /W3 /utf-8 /D_CRT_SECURE_NO_WARNINGS /Fo:out\ OneClick.c /Fe:out\OneClick.exe /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib comdlg32.lib shell32.lib advapi32.lib setupapi.lib cfgmgr32.lib /MANIFEST:EMBED /MANIFESTINPUT:UI.manifest /MANIFESTUAC:NO
+cl /nologo /O2 /W3 /utf-8 /D_CRT_SECURE_NO_WARNINGS /Fo:out\ OneClick.c /Fe:out\OneClick.exe /link /SUBSYSTEM:WINDOWS user32.lib gdi32.lib comdlg32.lib shell32.lib advapi32.lib setupapi.lib cfgmgr32.lib /MANIFEST:EMBED /MANIFESTINPUT:UI.manifest /MANIFESTUAC:NO /Brepro
 if errorlevel 1 (
     echo [ERROR] build failed
     exit /b 1

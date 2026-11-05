@@ -7,7 +7,7 @@ if errorlevel 1 exit /b 1
 if not exist out mkdir out
 REM scan an exe and decide whether the bridge can drive it
 echo [INFO] building CanCheck.exe ...
-cl /nologo /O2 /W3 /utf-8 /D_CRT_SECURE_NO_WARNINGS /Fo:out\ CanCheck.c /Fe:out\CanCheck.exe /link /SUBSYSTEM:CONSOLE
+cl /nologo /O2 /W3 /utf-8 /D_CRT_SECURE_NO_WARNINGS /Fo:out\ CanCheck.c /Fe:out\CanCheck.exe /link /SUBSYSTEM:CONSOLE /Brepro
 if errorlevel 1 (
     echo [ERROR] build failed
     exit /b 1

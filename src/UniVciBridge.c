@@ -3742,7 +3742,9 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID lpReserved)
            __DATE__/__TIME__ 是编译期常量，不同构建必然不同。
         */
         LogLine("=== UniVciBridge 已加载 ===");
-        LogF("构建: %s %s  (v%s)", __DATE__, __TIME__, UNIVCI_BUILD_TAG);
+        LogF("构建: v%s", UNIVCI_BUILD_TAG);
+        /* 不打印 __DATE__/__TIME__：那样每次编译哈希都变，
+           "认指纹"就失去意义。版本靠 UNIVCI_BUILD_TAG 认。 */
     } else if (reason == DLL_PROCESS_DETACH) {
         LogLine("=== UniVciBridge 已卸载 ===");
         /*

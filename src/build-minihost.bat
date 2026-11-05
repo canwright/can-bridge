@@ -7,7 +7,7 @@ if errorlevel 1 exit /b 1
 if not exist out mkdir out
 REM minimal VCI host used by smoke tests
 echo [INFO] building MiniHost.exe ...
-cl /nologo /O2 /W3 /utf-8 /D_CRT_SECURE_NO_WARNINGS /Fo:out\ MiniHost.c /Fe:out\MiniHost.exe /link /SUBSYSTEM:CONSOLE
+cl /nologo /O2 /W3 /utf-8 /D_CRT_SECURE_NO_WARNINGS /Fo:out\ MiniHost.c /Fe:out\MiniHost.exe /link /SUBSYSTEM:CONSOLE /Brepro
 if errorlevel 1 (
     echo [ERROR] build failed
     exit /b 1
