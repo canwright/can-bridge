@@ -21,17 +21,21 @@
 #include <stdlib.h>
 
 #pragma pack(push, 1)
+/* ★ 官方 VCI_INIT_CONFIG 是【16 字节】，前面没有 Mode/InitBytes。
+   这里原来写的是 18 字节（多了 Mode/InitBytes），会让后面所有字段错位 2 字节 ——
+   同一个坑在桥里也踩过：InitCAN 的 Filter/Timing 全读出垃圾值。
+   加编译期断言，谁改坏谁编不过。 */
 typedef struct {
-    BYTE  Mode;
-    BYTE  InitBytes;
     DWORD AccCode;
     DWORD AccMask;
     DWORD Reserved;
     BYTE  Filter;
     BYTE  Timing0;
     BYTE  Timing1;
-    BYTE  Mode2;
+    BYTE  Mode;
 } CFG;
+
+typedef char CHECK_CFG_SIZE[(sizeof(CFG) == 16) ? 1 : -1];
 
 typedef struct {
     DWORD ID;

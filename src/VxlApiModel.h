@@ -42,10 +42,20 @@
 #ifndef VXL_API_MODEL_H
 #define VXL_API_MODEL_H
 
+/* offsetof 在文件末尾的编译期断言里用到，必须在这里 include。
+   之前没 include，只是 VxlLayoutTest.c 自己先包含了 <stddef.h> 才侥幸编过 ——
+   任何单独包含本头文件的源文件都会编不过。 */
+#include <stddef.h>
+
 #pragma pack(push, 1)
 
 typedef unsigned int       XLstatus;
-typedef unsigned int       XLaccess;
+/* ★ XLaccess 是 8 字节 —— 导出的修饰名反推出来的：
+     _xlOpenPort@32          = 4+4+8+4+4+4+4
+     _xlDeactivateChannel@12 = 4+8
+     _xlCanSetChannelBitrate@16 = 4+8+4
+   写成 4 字节会让每个带 mask 的调用少压 4 字节栈。 */
+typedef unsigned __int64   XLaccess;
 typedef unsigned __int64   XLuint64;
 typedef unsigned int       XLportHandle;
 

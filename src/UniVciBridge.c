@@ -689,6 +689,11 @@ typedef struct {
 typedef XLstatus (__stdcall *PF_xlOpenDriver)      (void);
 typedef XLstatus (__stdcall *PF_xlCloseDriver)     (void);
 typedef XLstatus (__stdcall *PF_xlGetDriverConfig) (XLdriverConfig *);
+/* ★ 7 个参数，但 accessMask 是 XLaccess（8 字节），所以总栈宽是 32：
+       ptr(4) + app(4) + mask(8) + permPtr(4) + rxQ(4) + ifaceVer(4) + busType(4) = 32
+   与真 DLL 的导出名 _xlOpenPort@32 吻合。
+   ★ 曾经把 XLaccess 误写成 unsigned int（4 字节），结果 mask 少压 4 字节，
+     驱动读到垃圾高位，表现为崩溃或 perm=0。 */
 typedef XLstatus (__stdcall *PF_xlOpenPort)        (XLportHandle *, const char *,
                                                     XLaccess, XLaccess *,
                                                     unsigned int, unsigned int,
