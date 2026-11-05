@@ -1740,7 +1740,11 @@ static DWORD ReadIniInt(const wchar_t *dir, const char *key)
     return 0;
 }
 
-static void ReadIniBackend(const wchar_t *dir, char *out, size_t n)
+/*
+ 通用的 ini 字符串读取。原来是 ReadIniBackend 写死了 "backend"，
+ 现在加 app_name 也要读，就抽出来做通用版本。
+*/ 
+static int ReadIniString(const wchar_t *dir, const char *key, char *out, size_t n)
 {
     wchar_t path[MAX_PATH * 2];
     FILE *f;
@@ -1749,7 +1753,7 @@ static void ReadIniBackend(const wchar_t *dir, char *out, size_t n)
     _snwprintf(path, MAX_PATH * 2 - 1, L"%s\\UniVciBridge.ini", dir);
 
     f = _wfopen(path, L"rb");
-    if (!f) return;
+    if (!f) return 0;
     {
         /* 手工读，兼容 UTF-8 / UTF-8 BOM / ANSI */
         char raw[2048];
@@ -1772,7 +1776,7 @@ static void ReadIniBackend(const wchar_t *dir, char *out, size_t n)
                         char *eq = strchr(ln, '=');
                         if (eq) {
                             *eq = '\0';
-                            if (_stricmp(ln, "backend") == 0) {
+                            if (_stricmp(ln, key) == 0) {
                                 char *v = eq + 1;
                                 while (*v == ' ' || *v == '\t') v++;
                                 strncpy(out, v, n - 1);
@@ -1782,7 +1786,7 @@ static void ReadIniBackend(const wchar_t *dir, char *out, size_t n)
                                     while (t > out && (t[-1] == ' ' || t[-1] == '\t' ||
                                                        t[-1] == '\r' || t[-1] == '\n')) *--t = '\0';
                                 }
-                                return;
+                                return 1;
                             }
                         }
                     }
@@ -1793,6 +1797,13 @@ static void ReadIniBackend(const wchar_t *dir, char *out, size_t n)
             }
         }
     }
+    return 0;
+}
+
+/* 兼容旧调用点：原来只读 backend，现在走通用版本 */
+static void ReadIniBackend(const wchar_t *dir, char *out, size_t n)
+{
+    ReadIniString(dir, "backend", out, n);
 }
 
 /*
@@ -1930,6 +1941,21 @@ static void SelectBackend(void)
         if (g_xlWantChan)
             LogF("★ 指定 Vector 通道: 第 %d 路（xl_channel=%d）",
                  g_xlWantChan, g_xlWantChan);
+    }
+    /*
+     ★ 应用名：两个上位机同时用一块盒子时，必须用【不同】的应用名。
+
+       Vector 是按"应用"分配通道的：同一个应用名只算一个应用，
+       第二个进程拿不到 init 权限。所以：
+           ZCANPRO 的 ini 写 app_name=ZCANPRO
+           CANape 那边写 app_name=CANape（或直接用 Vector 原生）
+     */
+    {
+        static char appBuf[64];
+        if (ReadIniString(dir, "app_name", appBuf, sizeof(appBuf)) && appBuf[0]) {
+            g_xlAppName = appBuf;
+            LogF("★ Vector 应用名: \"%s\"（app_name）", g_xlAppName);
+        }
     }
     g_euLayout = ReadIniFlag(dir, "eu_layout");
 

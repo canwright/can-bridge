@@ -73,6 +73,16 @@ int main(int argc, char **argv)
     setvbuf(stdout, NULL, _IONBF, 0);
 
     dev  = (argc >= 2) ? (DWORD)atoi(argv[1]) : 21;
+    /*
+     ★ ch 必须在所有模式之前解析。
+
+       好几个模式（unit / spam / ...）是放在下面那行 ch = atoi(argv[2])
+       之前处理的，结果模式里用 ch 拿到的是栈上的垃圾值 ——
+       日志里出现过 "通道 2147483653"（0x80000005）、
+       InitCAN 返回 0、xlCanTransmit 返回 113。
+       统一提到这里，各模式需要时自己覆盖。
+     */
+    ch   = (argc >= 3) ? (DWORD)atoi(argv[2]) : 0;
     if (argc >= 3 && strcmp(argv[2], "filter") == 0) {
         /*
          filter 模式：验证验收滤波是否真的生效。
@@ -518,11 +528,15 @@ int main(int argc, char **argv)
         PF_NUM   hN;
         VCI_CFG c4;
         DWORD t0d, sent = 0;
+        /* ★ 参数顺序是 <型号> <通道> spam <秒数> [ID]，
+           秒数在 argv[4]，ID 在 argv[5]。原来用了全局 secs（从 argv[3]
+           取，那里是 "spam"，atoi 得 0），所以一秒都没发。 */
+        int secs4 = (argc >= 5) ? atoi(argv[4]) : 5;
         DWORD txId = (argc >= 6) ? (DWORD)strtoul(argv[5], NULL, 16) : 0x123;
         int recvN = 0;
 
         printf("=== spam 发送  型号=%lu 通道=%lu  %d 秒  ID=0x%lX ===\n\n",
-               (unsigned long)dev, (unsigned long)ch, secs, (unsigned long)txId);
+               (unsigned long)dev, (unsigned long)ch, secs4, (unsigned long)txId);
         if (!d4) { printf("  加载 USBCAN.dll 失败\n"); return 1; }
         hO = (PF_OPEN)  GetProcAddress(d4, "VCI_OpenDevice");
         hC = (PF_CLOSE) GetProcAddress(d4, "VCI_CloseDevice");
@@ -536,11 +550,16 @@ int main(int argc, char **argv)
         ZeroMemory(&c4, sizeof(c4));
         c4.AccMask = 0xFFFFFFFF; c4.Filter = 1;
         c4.Timing0 = 0x00; c4.Timing1 = 0x1C;
-        printf("  InitCAN -> %lu  StartCAN -> %lu\n\n",
-               hI(dev, 0, ch, &c4), hS(dev, 0, ch));
+        {
+            /* 同上：分开调用，避免参数求值顺序导致 StartCAN 先跑 */
+            DWORD r_i = hI(dev, 0, ch, &c4);
+            DWORD r_s = hS(dev, 0, ch);
+            printf("  InitCAN -> %lu  StartCAN -> %lu\n\n",
+                   (unsigned long)r_i, (unsigned long)r_s);
+        }
 
         t0d = GetTickCount();
-        while ((int)(GetTickCount() - t0d) < secs * 1000) {
+        while ((int)(GetTickCount() - t0d) < secs4 * 1000) {
             VCI_OBJ o;
             DWORD r;
             ZeroMemory(&o, sizeof(o));
@@ -677,7 +696,7 @@ int main(int argc, char **argv)
         fC(dev, 0);
         return 0;
     }
-    ch   = (argc >= 3) ? (DWORD)atoi(argv[2]) : 0;
+    /* ch 已在上面解析；secs 仍是普通模式的秒数 */
     secs = (argc >= 4) ? atoi(argv[3]) : 5;
 
     printf("=== VCI 监听（走桥）  型号=%lu 通道=%lu  %d 秒 ===\n\n",
