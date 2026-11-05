@@ -73,6 +73,93 @@ int main(int argc, char **argv)
     setvbuf(stdout, NULL, _IONBF, 0);
 
     dev  = (argc >= 2) ? (DWORD)atoi(argv[1]) : 21;
+    if (argc >= 3 && strcmp(argv[2], "status") == 0) {
+        /* 读 VCI_ReadErrInfo / VCI_ReadCANStatus，验证错误状态与位时序回传 */
+        HMODULE d8 = LoadLibraryA("USBCAN.dll");
+        PF_OPEN  sO; PF_INIT sI; PF_START sS; PF_CLOSE sC;
+        VCI_CFG c8;
+        unsigned char err[16];
+        unsigned int st[8];
+
+        ch = 0;
+        printf("=== 读取错误状态 / CAN 状态 ===\n\n");
+        if (!d8) { printf("  加载失败\n"); return 1; }
+        {
+            typedef DWORD (__stdcall *PF_E)(DWORD, DWORD, DWORD, void *);
+            PF_E fE = (PF_E)GetProcAddress(d8, "VCI_ReadErrInfo");
+            PF_E fS = (PF_E)GetProcAddress(d8, "VCI_ReadCANStatus");
+            sO = (PF_OPEN)  GetProcAddress(d8, "VCI_OpenDevice");
+            sC = (PF_CLOSE) GetProcAddress(d8, "VCI_CloseDevice");
+            sI = (PF_INIT)  GetProcAddress(d8, "VCI_InitCAN");
+            sS = (PF_START) GetProcAddress(d8, "VCI_StartCAN");
+
+            printf("  OpenDevice -> %lu\n", sO(dev, 0, 0));
+            ZeroMemory(&c8, sizeof(c8));
+            c8.AccMask = 0xFFFFFFFF; c8.Filter = 1;
+            c8.Timing0 = 0x00; c8.Timing1 = 0x1C;
+            /*
+             ★ 必须分开调用。写成 printf("...", sI(...), sS(...)) 时
+               参数求值顺序未定义，编译器可能先调 StartCAN —— 那样
+               会看到 "StartCAN -> 0"，其实是测试代码的错，不是桥的错。
+             */
+            {
+                DWORD ri = sI(dev, 0, ch, &c8);
+                DWORD rs = sS(dev, 0, ch);
+                printf("  InitCAN -> %lu  StartCAN -> %lu\n\n",
+                       (unsigned long)ri, (unsigned long)rs);
+            }
+            Sleep(200);
+
+            ZeroMemory(err, sizeof(err));
+            printf("  VCI_ReadErrInfo -> %lu\n", fE ? fE(dev, 0, ch, err) : 0xFFFFFFFF);
+            printf("     ErrCode        = %u  %s\n", err[0],
+                   err[0]==0?"(无错误)":err[0]==1?"(错误警告)":err[0]==2?"(★错误被动)":err[0]==3?"(★总线关闭)":"(?)");
+            printf("     Passive_ErrData= %u %u %u  (TEC REC -)\n", err[1], err[2], err[3]);
+
+            ZeroMemory(st, sizeof(st));
+            printf("\n  VCI_ReadCANStatus -> %lu\n", fS ? fS(dev, 0, ch, st) : 0xFFFFFFFF);
+            printf("     Baudrate   = %u\n", st[0]);
+            printf("     Tseg1      = %u\n", st[1]);
+            printf("     Tseg2      = %u\n", st[2]);
+            printf("     SJW        = %u\n", st[3]);
+            printf("     SAM        = %u\n", st[4]);
+            printf("     OutputMode = %u\n", st[5]);
+            printf("\n  期望（Timing0=0x00 Timing1=0x1C 500k）：\n");
+            printf("     Baudrate=500000  SJW=1  Tseg1=13  Tseg2=2  SAM=0  OutputMode=1\n");
+
+            /*
+             第二阶段：主动制造总线错误。
+             只开这一路（不自开第二路当 ACK 对端），连发 40 帧 ——
+             总线上没人应答，发送错误计数会一路涨上去，
+             最后进入总线关闭。用它验证错误码真的会变，而不是永远 0。
+             */
+            if (argc >= 4 && strcmp(argv[3], "induce") == 0) {
+                typedef DWORD (__stdcall *PF_TX2)(DWORD, DWORD, DWORD, VCI_OBJ *, DWORD);
+                PF_TX2 fT = (PF_TX2)GetProcAddress(d8, "VCI_Transmit");
+                int ii;
+                printf("\n  === 第二阶段：无应答连发 40 帧，制造总线错误 ===\n");
+                for (ii = 0; ii < 40; ii++) {
+                    VCI_OBJ t;
+                    ZeroMemory(&t, sizeof(t));
+                    t.ID = 0x1AB; t.DataLen = 8;
+                    fT(dev, 0, ch, &t, 1);
+                    Sleep(5);
+                }
+                Sleep(300);
+                ZeroMemory(err, sizeof(err));
+                fE(dev, 0, ch, err);
+                printf("     连发之后: ErrCode=%u  %s\n", err[0],
+                       err[0]==0?"(无错误)":err[0]==1?"(错误警告)":err[0]==2?"(★错误被动)":err[0]==3?"(★总线关闭)":"(?)");
+                printf("     TEC=%u REC=%u\n", err[1], err[2]);
+                if (err[0] != 0)
+                    printf("  ✅ 错误状态成功回传给上位机（修复前这里永远是 0）\n");
+                else
+                    printf("  · 仍是 0 —— 可能总线有别的节点在应答\n");
+            }
+        }
+        sC(dev, 0);
+        return 0;
+    }
     if (argc >= 3 && strcmp(argv[2], "period") == 0) {
         /*
          period 模式：模仿上位机"按固定周期发送"，量三件事

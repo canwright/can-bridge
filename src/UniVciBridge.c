@@ -689,7 +689,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-txperf"
+#define UNIVCI_BUILD_TAG            "2026-11-05-errinfo"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -739,6 +739,8 @@ typedef XLstatus (__stdcall *PF_xlCanTransmit)     (XLportHandle, XLaccess,
 typedef XLstatus (__stdcall *PF_xlReceive)         (XLportHandle,
                                                     unsigned int *, XLevent *);
 typedef XLstatus (__stdcall *PF_xlFlushReceiveQueue)(XLportHandle);
+/* _xlCanRequestChipState@12 = 4(handle) + 8(access) */
+typedef XLstatus (__stdcall *PF_xlCanRequestChipState)(XLportHandle, XLaccess);
 typedef XLstatus (__stdcall *PF_xlGetErrorString)  (XLstatus, char **);
 
 /*==========================================================================
@@ -897,12 +899,26 @@ static int       g_xlCanN = 0;
 static int       g_xlChipState = -1;
 static int       g_xlTxErr = 0;
 static int       g_xlRxErr = 0;
+
+/*
+ ★ 按 VCI 通道分别记录总线状态和位时序参数。
+
+   原来芯片状态只有一份全局变量，多路时两路会互相覆盖，
+   报出来的错误就不知道是哪一路的。
+*/
+static int       g_chipStateCh[VCI_MAX_CHANNEL];
+static int       g_tecCh[VCI_MAX_CHANNEL];
+static int       g_recCh[VCI_MAX_CHANNEL];
+static unsigned  g_timing0Ch[VCI_MAX_CHANNEL];
+static unsigned  g_timing1Ch[VCI_MAX_CHANNEL];
+static unsigned  g_baudCh[VCI_MAX_CHANNEL];
 static const char *g_xlAppName = "UniVciBridge";
 /* 用户指定用第几路 Vector 硬件通道（1 起）。0 = 自动挑第一个有权限的 */
 static int g_xlWantChan = 0;
 static PF_xlCanTransmit      pXlTransmit = NULL;
 static PF_xlReceive          pXlReceiveFn = NULL;
 static PF_xlFlushReceiveQueue pXlFlushRx = NULL;
+static PF_xlCanRequestChipState pXlChipState = NULL;
 static PF_xlGetErrorString   pXlErrStr = NULL;
 
 static XLportHandle g_xlPort = 0;
@@ -1278,6 +1294,7 @@ static int ProbeVector(const wchar_t *dir, int explicit_req)
     pXlTransmit   = (PF_xlCanTransmit)     GetProcAddress(h, "xlCanTransmit");
     pXlReceiveFn  = (PF_xlReceive)         GetProcAddress(h, "xlReceive");
     pXlFlushRx    = (PF_xlFlushReceiveQueue)GetProcAddress(h, "xlFlushReceiveQueue");
+    pXlChipState  = (PF_xlCanRequestChipState)GetProcAddress(h, "xlCanRequestChipState");
     pXlErrStr     = (PF_xlGetErrorString)  GetProcAddress(h, "xlGetErrorString");
     pXlSetAppl    = (PF_xlSetApplConfig)   GetProcAddress(h, "xlSetApplConfig");
 
@@ -3127,6 +3144,12 @@ __declspec(dllexport) DWORD __stdcall VCI_InitCAN(DWORD DeviceType,
 
         /* 每路用自己那一份 mask（多路时不能都用 g_xlMask） */
         XLaccess cm = (CANInd < (DWORD)g_xlUseN) ? g_xlUseMask[CANInd] : g_xlMask;
+        /* 记下上位机给的位时序字节，VCI_ReadCANStatus 要原样还原回去 */
+        if (CANInd < VCI_MAX_CHANNEL) {
+            g_timing0Ch[CANInd] = pInit ? pInit->Timing0 : 0;
+            g_timing1Ch[CANInd] = pInit ? pInit->Timing1 : 0;
+            g_baudCh[CANInd] = (unsigned)rate;
+        }
 
         /* 1) 已激活的话先取消（设波特率要求未激活） */
         if (g_started[CANInd] && pXlDeactivate) pXlDeactivate(g_xlPort, cm);
@@ -3408,9 +3431,17 @@ static void VxlRxPump(void)
         if (tag == XL_CHIP_STATE) {
             unsigned bs = e[16];
             const char *st = "";
+            int csi = -1, cj;
+            for (cj = 0; cj < g_xlUseN; cj++)
+                if (g_xlUseIdx[cj] == (unsigned int)e[1]) { csi = cj; break; }
             g_xlChipState = (int)bs;
             g_xlTxErr = e[17];
             g_xlRxErr = e[18];
+            if (csi >= 0 && csi < VCI_MAX_CHANNEL) {
+                g_chipStateCh[csi] = (int)bs;
+                g_tecCh[csi] = e[17];
+                g_recCh[csi] = e[18];
+            }
             /* busStatus 是位掩码：0x01 BUSOFF / 0x02 被动 / 0x04 警告 / 0x08 主动 */
             if (bs == 0) st = "正常";
             if (bs & XL_CHIPSTAT_BUSOFF)        st = "★ 总线关闭 BUSOFF";
@@ -4124,8 +4155,59 @@ __declspec(dllexport) DWORD __stdcall VCI_ReadErrInfo(DWORD DeviceType, DWORD De
     DWORD real = MapDevType(DeviceType, &cnt);
 
     EnterCriticalSection(&g_cs);
+    /*
+     ★ 读错误之前先抽一次事件。
+
+       Vector 的总线状态（XL_CHIP_STATE）是【事件】，只有在 xlReceive
+       取事件时才会被读到。上位机通常是"只发不收"，那样泵一次都不跑，
+       芯片状态永远是初始的 0 —— 总线都关闭了，读出来还显示"无错误"。
+
+       实测就是这样：无应答连发 40 帧，ErrCode 仍然是 0。
+       加上这一句之后状态才真正可读。
+     */
+    if (g_backend == BE_VECTOR && g_xlPortOpen && g_opened) {
+        /*
+         ★ 主动索取一次芯片状态。
+
+           手册 5.5.2 写得很明确：
+             "This event occurs after calling xlCanRequestChipState()."
+           也就是说 XL_CHIP_STATE 事件不是驱动随便发的，要主动请求。
+           不请求的话，只发不收的上位机永远读不到总线状态。
+
+           请求后再抽事件，才能拿到刚刷新的 busStatus / 错误计数。
+         */
+        if (pXlChipState) {
+            XLaccess qm = (CANInd < (DWORD)g_xlUseN) ? g_xlUseMask[CANInd] : g_xlMask;
+            pXlChipState(g_xlPort, qm);
+        }
+        VxlRxPump();
+    }
+
     if ((g_backend == BE_GCAN || g_backend == BE_VCI) && g_vci.ReadErrInfo) {
         r = g_vci.ReadErrInfo(real, DeviceInd, CANInd, pErr);
+    } else if (g_backend == BE_VECTOR && pErr) {
+        /*
+         ★ 把 Vector 的 busStatus 位掩码翻译成周立功的错误码。
+
+           XL_CHIPSTAT_BUSOFF        0x01  → 3  总线关闭
+           XL_CHIPSTAT_ERROR_PASSIVE 0x02  → 2  错误被动
+           XL_CHIPSTAT_ERROR_WARNING 0x04  → 1  错误警告
+           其余（0x08 错误主动 = 正常态）   → 0  无错误
+
+           以前这里直接清零，总线都关了上位机还显示"一切正常"。
+         */
+        int bs = (CANInd < VCI_MAX_CHANNEL) ? g_chipStateCh[CANInd] : 0;
+        ZeroMemory(pErr, sizeof(*pErr));
+        if (bs & XL_CHIPSTAT_BUSOFF)            pErr->ErrCode = 3;
+        else if (bs & XL_CHIPSTAT_ERROR_PASSIVE) pErr->ErrCode = 2;
+        else if (bs & XL_CHIPSTAT_ERROR_WARNING) pErr->ErrCode = 1;
+        else                                     pErr->ErrCode = 0;
+        if (CANInd < VCI_MAX_CHANNEL) {
+            pErr->Passive_ErrData[0] = (BYTE)g_tecCh[CANInd];
+            pErr->Passive_ErrData[1] = (BYTE)g_recCh[CANInd];
+            pErr->Passive_ErrData[2] = 0;
+        }
+        pErr->ArLost_ErrData = 0;
     } else if (pErr) {
         ZeroMemory(pErr, sizeof(*pErr));
     }
@@ -4146,7 +4228,25 @@ __declspec(dllexport) DWORD __stdcall VCI_ReadCANStatus(DWORD DeviceType,
         r = g_vci.ReadCANStatus(real, DeviceInd, CANInd, pStatus);
     } else if (pStatus) {
         ZeroMemory(pStatus, sizeof(*pStatus));
-        pStatus->Baudrate = g_bitrate;
+        if (CANInd < VCI_MAX_CHANNEL && g_baudCh[CANInd]) {
+            unsigned t0 = g_timing0Ch[CANInd];
+            unsigned t1 = g_timing1Ch[CANInd];
+            /*
+             从 SJA1000 的两个 BTR 字节还原：
+                 SJW   = (BTR0 & 0x03) + 1
+                 Tseg1 = (BTR1 & 0x0F) + 1
+                 Tseg2 = ((BTR1 >> 4) & 0x07) + 1
+                 SAM   = (BTR1 >> 7) & 1
+             */
+            pStatus->Baudrate   = g_baudCh[CANInd];
+            pStatus->SJW        = (t0 & 0x03) + 1;
+            pStatus->Tseg1      = (t1 & 0x0F) + 1;
+            pStatus->Tseg2      = ((t1 >> 4) & 0x07) + 1;
+            pStatus->SAM        = (t1 >> 7) & 1;
+            pStatus->OutputMode = 1;      /* 正常输出（非只听） */
+        } else {
+            pStatus->Baudrate = g_bitrate;
+        }
     }
     LeaveCriticalSection(&g_cs);
     return r;
