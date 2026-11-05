@@ -73,6 +73,68 @@ int main(int argc, char **argv)
     setvbuf(stdout, NULL, _IONBF, 0);
 
     dev  = (argc >= 2) ? (DWORD)atoi(argv[1]) : 21;
+    if (argc >= 3 && strcmp(argv[2], "bothtx") == 0) {
+        /* 两路同时：各发一帧，再同时读，验证互不阻塞、不串通道 */
+        int secs3 = (argc >= 4) ? atoi(argv[3]) : 3;
+        HMODULE d3 = LoadLibraryA("USBCAN.dll");
+        PF_OPEN  gO; PF_INIT gI; PF_START gS; PF_RX gR; PF_TX gT; PF_CLOSE gC;
+        VCI_CFG cf;
+        VCI_OBJ tx;
+        DWORD t0c;
+        int got0 = 0, got1 = 0, saw; 
+
+        printf("=== 两路同时收发  型号=%lu  %d 秒 ===\n\n", (unsigned long)dev, secs3);
+        if (!d3) { printf("  加载 USBCAN.dll 失败\n"); return 1; }
+        gO = (PF_OPEN)  GetProcAddress(d3, "VCI_OpenDevice");
+        gC = (PF_CLOSE) GetProcAddress(d3, "VCI_CloseDevice");
+        gI = (PF_INIT)  GetProcAddress(d3, "VCI_InitCAN");
+        gS = (PF_START) GetProcAddress(d3, "VCI_StartCAN");
+        gR = (PF_RX)    GetProcAddress(d3, "VCI_Receive");
+        gT = (PF_TX)    GetProcAddress(d3, "VCI_Transmit");
+
+        printf("  OpenDevice -> %lu\n", gO(dev, 0, 0));
+        ZeroMemory(&cf, sizeof(cf));
+        cf.AccMask = 0xFFFFFFFF; cf.Filter = 1;
+        cf.Timing0 = 0x00; cf.Timing1 = 0x1C;
+        printf("  InitCAN  ch0=%lu ch1=%lu\n",
+               gI(dev, 0, 0, &cf), gI(dev, 0, 1, &cf));
+        printf("  StartCAN ch0=%lu ch1=%lu\n\n",
+               gS(dev, 0, 0), gS(dev, 0, 1));
+
+        /* 通道 0 发 0x1AB，通道 1 发 0x2CD —— 两个 ID 不同，好区分 */
+        ZeroMemory(&tx, sizeof(tx));
+        tx.ID = 0x1AB; tx.DataLen = 4;
+        tx.Data[0] = 0xAA; tx.Data[1] = 0x01;
+        printf("  [ch0 发] ID=0x1AB -> %lu\n", gT(dev, 0, 0, &tx, 1));
+        ZeroMemory(&tx, sizeof(tx));
+        tx.ID = 0x2CD; tx.DataLen = 4;
+        tx.Data[0] = 0xBB; tx.Data[1] = 0x02;
+        printf("  [ch1 发] ID=0x2CD -> %lu\n\n", gT(dev, 0, 1, &tx, 1));
+
+        t0c = GetTickCount();
+        while ((int)(GetTickCount() - t0c) < secs3 * 1000) {
+            int c;
+            for (c = 0; c < 2; c++) {
+                VCI_OBJ buf[16];
+                DWORD n = gR(dev, 0, (DWORD)c, buf, 16, 10);
+                DWORD kk;
+                for (kk = 0; kk < n && kk < 16; kk++) {
+                    if (buf[kk].ID != 0x1AB && buf[kk].ID != 0x2CD) continue;  /* 只看自己的 */
+                    if (c == 0) got0++; else got1++;
+                    printf("  [ch%u 收到自己的] ID=0x%lX 数据=%02X %02X\n",
+                           (unsigned)c, (unsigned long)buf[kk].ID,
+                           buf[kk].Data[0], buf[kk].Data[1]);
+                }
+            }
+            Sleep(5);
+        }
+        saw = got0 + got1;
+        printf("\n  === ch0 收到自己 %d 帧，ch1 收到自己 %d 帧 ===\n", got0, got1);
+        if (got0 > 0 && got1 > 0) printf("  ✅ 两路同时收发都成功\n");
+        else printf("  ★ 有一路没收到自己的回显\n");
+        gC(dev, 0);
+        return 0;
+    }
     if (argc >= 3 && strcmp(argv[2], "both") == 0) {
         /* 双通道同时读：用来判断"同一帧是否两路都收到" */
         int secs2 = (argc >= 4) ? atoi(argv[3]) : 5;

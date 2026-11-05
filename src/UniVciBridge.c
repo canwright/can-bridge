@@ -697,6 +697,12 @@ typedef struct {
 
 #define XL_RECEIVE_MSG              1
 #define XL_CHIP_STATE               4
+/* XL_CHIP_STATE 的 busStatus 是【位掩码】，不是枚举值。
+   原来按 0/1/2/3 解码，结果 8、4、2 全显示成 '?' —— 这是错的。 */
+#define XL_CHIPSTAT_BUSOFF          0x01
+#define XL_CHIPSTAT_ERROR_PASSIVE   0x02
+#define XL_CHIPSTAT_ERROR_WARNING   0x04
+#define XL_CHIPSTAT_ERROR_ACTIVE    0x08
 #define XL_TRANSMIT_MSG             10
 /* 手册 18.1：10 = XL_ERR_QUEUE_IS_EMPTY（接收队列空，正常情况） */
 #define XL_ERR_QUEUE_IS_EMPTY       10
@@ -3399,14 +3405,19 @@ static void VxlRxPump(void)
         unsigned char tag = e[0];
 
         if (tag == XL_CHIP_STATE) {
-            g_xlChipState = e[16];
+            unsigned bs = e[16];
+            const char *st = "";
+            g_xlChipState = (int)bs;
             g_xlTxErr = e[17];
             g_xlRxErr = e[18];
-            LogF("  Vector 总线状态: busStatus=%u (%s) TEC=%u REC=%u",
-                 (unsigned)e[16],
-                 e[16] == 0 ? "正常" : e[16] == 1 ? "★ 总线关闭 BUSOFF" :
-                 e[16] == 2 ? "错误主动" : e[16] == 3 ? "★ 错误被动" : "?",
-                 (unsigned)e[17], (unsigned)e[18]);
+            /* busStatus 是位掩码：0x01 BUSOFF / 0x02 被动 / 0x04 警告 / 0x08 主动 */
+            if (bs == 0) st = "正常";
+            if (bs & XL_CHIPSTAT_BUSOFF)        st = "★ 总线关闭 BUSOFF";
+            else if (bs & XL_CHIPSTAT_ERROR_PASSIVE) st = "★ 错误被动（REC/TEC>127）";
+            else if (bs & XL_CHIPSTAT_ERROR_WARNING) st = "错误警告";
+            else if (bs & XL_CHIPSTAT_ERROR_ACTIVE)  st = "错误主动（正常态）";
+            LogF("  Vector 总线状态: busStatus=0x%X (%s) TEC=%u REC=%u",
+                 bs, st, (unsigned)e[17], (unsigned)e[18]);
             continue;
         }
         if (tag != XL_RECEIVE_MSG) continue;
