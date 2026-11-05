@@ -690,7 +690,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-errframe"
+#define UNIVCI_BUILD_TAG            "2026-11-05-zlgfirst"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -2132,6 +2132,105 @@ static int ProbePassthrough(const wchar_t *dir)
     return 0;
 }
 
+
+/*
+ ★★ 真周立功优先 ★★
+
+ 装桥之后，程序目录的 USBCAN.dll 变成了桥，把 kerneldlls\USBCAN.dll
+ 那份原厂盖住了。原厂透传原来排在探测链最后，只要前面某个后端
+ 碰巧能打开，真周立功盒子就轮不到 —— 用户看到的就是
+ "开启桥后周立功设备无法识别"。
+
+ 所以在这里抢在一切之前：把原厂 DLL 当后端试一次，
+ 能真的打开设备就立刻用它，后面的探测全跳过。
+
+ 试的顺序（每个都必须真的 OpenDevice 成功，光有导出不算）：
+    1. <dir>\<自己的文件名>.zlg.bak     ← 安装时备份的，最贴切
+    2. <dir>\USBCAN.dll.zlg.bak
+    3. <dir>\kerneldlls\USBCAN.dll      ← ZCANPRO 自带原厂
+    4. <dir>\kerneldlls\USBCAN.dll.zlg.bak
+    5. <dir>\kerneldlls\usbcan.dll      ← 大小写不同的同一份
+
+ 不是桥自己（身份证检查）、且真的能开设备，才认。
+*/
+static int ProbeRealZlgFirst(const wchar_t *dir)
+{
+    static const wchar_t *cand[] = {
+        L"%s\\%s.zlg.bak",
+        L"%s\\USBCAN.dll.zlg.bak",
+        L"%s\\kerneldlls\\USBCAN.dll",
+        L"%s\\kerneldlls\\USBCAN.dll.zlg.bak",
+        L"%s\\kerneldlls\\usbcan.dll",
+    };
+    static const DWORD types[] = { 3, 4, 20, 21 };
+    wchar_t selfName[MAX_PATH];
+    wchar_t path[MAX_PATH * 2];
+    int k, i;
+    VCI_TABLE t;
+
+    selfName[0] = L'\0';
+    {
+        wchar_t self[MAX_PATH * 2];
+        if (GetModuleFileNameW(g_hSelf, self, MAX_PATH * 2)) {
+            wchar_t *q = wcsrchr(self, L'\\');
+            if (q) {
+                wcsncpy(selfName, q + 1, MAX_PATH - 1);
+                selfName[MAX_PATH - 1] = L'\0';
+            }
+        }
+    }
+
+    for (k = 0; k < (int)(sizeof(cand) / sizeof(cand[0])); k++) {
+        HMODULE h;
+        DWORD at;
+
+        if (k == 0 && !selfName[0]) continue;
+        if (k == 0)
+            _snwprintf(path, MAX_PATH * 2 - 1, cand[k], dir, selfName);
+        else
+            _snwprintf(path, MAX_PATH * 2 - 1, cand[k], dir);
+        path[MAX_PATH * 2 - 1] = L'\0';
+
+        at = GetFileAttributesW(path);
+        if (at == INVALID_FILE_ATTRIBUTES || (at & FILE_ATTRIBUTE_DIRECTORY))
+            continue;
+
+        h = LoadLibraryW(path);
+        if (!h) continue;
+
+        /* 身份证检查：是桥自己就跳过，否则会无限递归 */
+        {
+            typedef const char *(__stdcall *PF_IDENT)(void);
+            PF_IDENT id = (PF_IDENT)GetProcAddress(h, "UniVciBridgeIdent");
+            if (id && id()) {
+                LogF("真周立功优先: %ls 是桥自己，跳过", path);
+                FreeLibrary(h);
+                continue;
+            }
+        }
+        if (!LoadVciTable(h, &t)) { FreeLibrary(h); continue; }
+
+        for (i = 0; i < (int)(sizeof(types) / sizeof(types[0])); i++) {
+            if (t.OpenDevice(types[i], 0, 0) == STATUS_OK) {
+                /* 保留"已打开"状态，别关 —— 周立功库对 open->close->open 不友好 */
+                g_vciOpened = 1;
+                g_vci = t;
+                g_vciRealType = types[i];
+                g_devType = types[i];
+                g_hBackend = h;
+                g_backend = BE_VCI;
+                strcpy(g_backendName, "zlg-original");
+                LogF("★ 后端: 真周立功（原厂 DLL %ls，型号 %lu）—— 与装桥前行为一致",
+                     path, (unsigned long)types[i]);
+                return 1;
+            }
+        }
+        LogF("真周立功优先: %ls 打不开设备，换下一个候选", path);
+        FreeLibrary(h);
+    }
+    return 0;
+}
+
 /* 运行时回退：指定/探测到的后端打不开盒子时，退回原厂 DLL。
    这样「插 PCAN 就用 PCAN，插真周立功就用原厂驱动」自动成立。 */
 static int TryOriginalPassthrough(void)
@@ -2284,6 +2383,9 @@ static void SelectBackend(void)
            backend=vector
        就会走上面那条「配置指定后端」的分支，正常启用。
      */
+    /* ★ 真周立功优先：能开原厂就先用原厂，别再往下猜 */
+    if (ProbeRealZlgFirst(dir)) return;
+
     if (ProbePcan(dir))   return;
     if (ProbeGcan(dir))   return;
     if (ProbeTosun(dir))  return;
