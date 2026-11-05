@@ -399,6 +399,7 @@ static void LogF(const char *fmt, ...)
     LogLine(buf);
 }
 
+
 /*==========================================================================
   4. 通用 VCI 后端表
  ==========================================================================*/
@@ -689,7 +690,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-filter"
+#define UNIVCI_BUILD_TAG            "2026-11-05-errframe"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -920,6 +921,9 @@ static unsigned  g_baudCh[VCI_MAX_CHANNEL];
 static unsigned  g_filtCode[VCI_MAX_CHANNEL];
 static unsigned  g_filtMask[VCI_MAX_CHANNEL];
 static unsigned  g_filtDrop[VCI_MAX_CHANNEL];   /* 被滤掉的帧数 */
+
+
+
 static const char *g_xlAppName = "UniVciBridge";
 /* 用户指定用第几路 Vector 硬件通道（1 起）。0 = 自动挑第一个有权限的 */
 static int g_xlWantChan = 0;
@@ -940,6 +944,231 @@ static int          g_xlChanCount = 0;
 static int          g_xlUseN = 0;
 static XLaccess     g_xlUseMask[VCI_MAX_CHANNEL];
 static unsigned int g_xlUseIdx[VCI_MAX_CHANNEL];   /* Vector chanIndex */
+/*==========================================================================
+  3.5 跨进程共享（ini 里 share=1 才启用）
+
+  两个上位机要用【同一条总线】时，Vector 只给第一个打开的应用 init 权限，
+  第二个必然 perm=0。这里用共享内存绕过去：
+
+      Owner  → 真硬件；收帧同时写 RX 环；循环里把 TX 环的请求发出去
+      Client → 不碰硬件；发帧写 TX 环；收帧读 RX 环
+
+  TX 不会撞：客户端用 InterlockedIncrement 抢序号，谁抢到谁发，
+  天然串行，不需要额外的锁。
+==========================================================================*/
+#define SHARE_MAGIC   0x55434232UL      /* "UCB2" */
+#define SHARE_SLOTS   1024
+
+typedef struct {
+    volatile unsigned long seq;        /* 0 = 空格；>0 = 有效 */
+    unsigned long id;
+    unsigned long ts;
+    unsigned short dlc;
+    unsigned char  ext;
+    unsigned char  rtr;
+    unsigned char  data[8];
+    unsigned char  pad[2];
+} SHARE_FRAME;
+
+typedef struct {
+    volatile unsigned long magic;
+    volatile unsigned long ownerPid;
+    volatile unsigned long ownerBeat;
+    volatile unsigned long rxSeq;
+    volatile unsigned long txSeq;
+    volatile unsigned long rxDrop;
+    SHARE_FRAME rx[SHARE_SLOTS];
+    SHARE_FRAME tx[SHARE_SLOTS];
+} SHARE_BLOCK;
+
+static HANDLE   g_shareMap = NULL;
+static SHARE_BLOCK *g_share = NULL;
+static int      g_shareOwner = 0;
+static int      g_shareClient = 0;
+static int      g_shareWant = 0;
+static unsigned long g_shareRxRead = 0;
+static unsigned long g_shareTxDone = 0;
+
+static int ShareOwnerAlive(void)
+{
+    DWORD now;
+    if (!g_share) return 0;
+    now = GetTickCount();
+    return (DWORD)(now - g_share->ownerBeat) < 5000;
+}
+
+static void ShareOpen(int asOwner)
+{
+    wchar_t name[64];
+    HANDLE m;
+
+    if (g_share || !g_shareWant) return;
+    wcscpy(name, L"Local\\UniVciBridge_SHARE_v1");
+
+    if (asOwner) {
+        m = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE,
+                               0, (DWORD)sizeof(SHARE_BLOCK), name);
+        if (!m) {
+            LogF("  共享内存创建失败 (err=%lu)", (unsigned long)GetLastError());
+            return;
+        }
+        if (GetLastError() == ERROR_ALREADY_EXISTS) {
+            CloseHandle(m);
+            ShareOpen(0);                    /* 已经有人当 Owner，本进程当 Client */
+            return;
+        }
+        g_share = (SHARE_BLOCK *)MapViewOfFile(m, FILE_MAP_ALL_ACCESS, 0, 0,
+                                               sizeof(SHARE_BLOCK));
+        if (!g_share) { CloseHandle(m); return; }
+        g_shareMap = m;
+        ZeroMemory(g_share, sizeof(SHARE_BLOCK));
+        g_share->magic = SHARE_MAGIC;
+        g_share->ownerPid = GetCurrentProcessId();
+        g_share->ownerBeat = GetTickCount();
+        g_shareOwner = 1;
+        LogF("  ★ 共享内存：本进程是 Owner（pid=%lu）",
+             (unsigned long)g_share->ownerPid);
+    } else {
+        m = OpenFileMappingW(FILE_MAP_ALL_ACCESS, FALSE, name);
+        if (!m) return;
+        g_share = (SHARE_BLOCK *)MapViewOfFile(m, FILE_MAP_ALL_ACCESS, 0, 0,
+                                               sizeof(SHARE_BLOCK));
+        if (!g_share) { CloseHandle(m); return; }
+        g_shareMap = m;
+        if (g_share->magic != SHARE_MAGIC) {
+            UnmapViewOfFile(g_share); CloseHandle(m);
+            g_share = NULL; g_shareMap = NULL;
+            return;
+        }
+        g_shareClient = 1;
+        g_shareRxRead = g_share->rxSeq;      /* 只看接入之后的帧 */
+        LogF("  ★ 共享内存：本进程是 Client（Owner pid=%lu）",
+             (unsigned long)g_share->ownerPid);
+    }
+}
+
+static void ShareClose(void)
+{
+    if (g_shareOwner && g_share) {
+        g_share->magic = 0;
+        g_share->ownerBeat = 0;
+    }
+    if (g_share) { UnmapViewOfFile(g_share); g_share = NULL; }
+    if (g_shareMap) { CloseHandle(g_shareMap); g_shareMap = NULL; }
+    g_shareOwner = g_shareClient = 0;
+}
+
+/* Owner：发布收到的帧 */
+static void SharePublish(const VCI_CAN_OBJ *o)
+{
+    unsigned long n, idx;
+    SHARE_FRAME *f;
+
+    if (!g_shareOwner || !g_share || !o) return;
+    n = g_share->rxSeq;
+    if (n >= SHARE_SLOTS) g_share->rxDrop++;
+    idx = n % SHARE_SLOTS;
+    f = &g_share->rx[idx];
+    f->id  = o->ID;
+    f->ts  = o->TimeStamp;
+    f->dlc = o->DataLen > 8 ? 8 : o->DataLen;
+    f->ext = o->ExternFlag;
+    f->rtr = o->RemoteFlag;
+    memcpy(f->data, o->Data, 8);
+    f->seq = n + 1;
+    g_share->rxSeq = n + 1;
+}
+
+/* Owner：把客户端请求发出去 */
+static void ShareDrainTx(void)
+{
+    unsigned long total;
+
+    if (!g_shareOwner || !g_share || !g_xlPortOpen || !pXlTransmit) return;
+    total = g_share->txSeq;
+
+    while (g_shareTxDone < total) {
+        SHARE_FRAME *f = &g_share->tx[g_shareTxDone % SHARE_SLOTS];
+        if (f->seq == g_shareTxDone + 1) {
+            XLevent ev;
+            unsigned int n = 1;
+            ZeroMemory(&ev, sizeof(ev));
+            ev.tag = XL_TRANSMIT_MSG;
+            ev.tagData.msg.id = f->id;
+            if (f->ext) ev.tagData.msg.id |= XL_CAN_EXT_MSG_ID;
+            ev.tagData.msg.dlc = (unsigned char)(f->dlc > 8 ? 8 : f->dlc);
+            if (f->rtr) ev.tagData.msg.flags |= XL_CAN_MSG_FLAG_REMOTE_FRAME;
+            memcpy(ev.tagData.msg.data, f->data, 8);
+            {
+                /*
+                 ★ 必须用【单通道】的 mask，不能用组合 mask。
+
+                   g_xlMask 在多路时是 0x3（两路合起来），拿它去 xlCanTransmit
+                   会被驱动判为非法，帧发不出去 —— 表现就是一串错误帧。
+                   VCI_Transmit 的正常路径一直用的是 g_xlUseMask[CANInd]，
+                   这里照做：客户端的帧统一从第 0 路发。
+                 */
+                XLaccess sm = (g_xlUseN > 0) ? g_xlUseMask[0] : g_xlMask;
+                pXlTransmit(g_xlPort, sm, &n, &ev);
+            }
+
+        }
+        g_shareTxDone++;
+    }
+}
+
+/* Client：读 RX 环 */
+static DWORD ShareRead(VCI_CAN_OBJ *pRecv, DWORD Len)
+{
+    DWORD got = 0;
+    if (!g_shareClient || !g_share) return 0;
+    while (got < Len && g_shareRxRead < g_share->rxSeq) {
+        SHARE_FRAME *f = &g_share->rx[g_shareRxRead % SHARE_SLOTS];
+        if (f->seq == g_shareRxRead + 1) {
+            ZeroMemory(&pRecv[got], sizeof(VCI_CAN_OBJ));
+            pRecv[got].ID = f->id;
+            pRecv[got].DataLen = (BYTE)f->dlc;
+            pRecv[got].ExternFlag = f->ext;
+            pRecv[got].RemoteFlag = f->rtr;
+            memcpy(pRecv[got].Data, f->data, 8);
+            pRecv[got].TimeStamp = f->ts;
+            pRecv[got].TimeFlag = 1;
+            got++;
+        }
+        g_shareRxRead++;
+    }
+    return got;
+}
+
+/* Client：提交发送 */
+static DWORD ShareWrite(const VCI_CAN_OBJ *pSend, DWORD Len)
+{
+    DWORD i;
+    if (!g_shareClient || !g_share || !ShareOwnerAlive()) return 0;
+    for (i = 0; i < Len; i++) {
+        unsigned long n = (unsigned long)InterlockedIncrement((LONG *)&g_share->txSeq) - 1;
+        {
+            static unsigned long wN = 0;
+            if (wN++ < 5) LogF("  共享诊断: 客户端写入 slot=%lu id=0x%lX", n, pSend[i].ID);
+        }
+        SHARE_FRAME *f = &g_share->tx[n % SHARE_SLOTS];
+        f->id  = pSend[i].ID;
+        f->ts  = pSend[i].TimeStamp;
+        f->dlc = pSend[i].DataLen > 8 ? 8 : pSend[i].DataLen;
+        f->ext = pSend[i].ExternFlag;
+        f->rtr = pSend[i].RemoteFlag;
+        memcpy(f->data, pSend[i].Data, 8);
+        f->seq = n + 1;
+    }
+    return Len;
+}
+
+static DWORD ShareAvail(void)
+{
+    if (!g_shareClient || !g_share) return 0;
+    if (g_share->rxSeq <= g_shareRxRead) return 0;
+    return (DWORD)(g_share->rxSeq - g_shareRxRead);
+}
 
 /*==========================================================================
   9. 工具
@@ -1934,6 +2163,9 @@ static void SelectBackend(void)
     SelfDir(dir, MAX_PATH * 2);
     ReadIniBackend(dir, want, sizeof(want));
     g_pcanEcho = ReadIniFlag(dir, "pcan_echo");
+    /* 跨进程共享（两个上位机同时用同一条总线时才需要） */
+    g_shareWant = ReadIniFlag(dir, "share");
+    if (g_shareWant) LogF("★ 跨进程共享已启用（share=1）");
     /* ★ 指定 Vector 硬件通道（VN1630A 的第几路 CAN，1 起） */
     {
         DWORD want = ReadIniInt(dir, "xl_channel");
@@ -2223,6 +2455,24 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
 
     EnterCriticalSection(&g_cs);
     SelectBackend();
+    /*
+     ★ share=1 时先看有没有别的进程已经在用。
+
+       有 → 本进程当 Client，直接接管，完全不碰硬件。
+       没有 → 继续走正常路径，成功后自己当 Owner。
+     */
+    if (g_shareWant && !g_share) {
+        ShareOpen(0);                  /* 先试当 Client */
+        if (g_shareClient) {
+            g_opened = 1;
+            g_devType = DeviceType;
+            g_xlPortOpen = 1;
+            g_realChans = 2;
+            LogF("VCI_OpenDevice: 以【共享客户端】身份接入（不走硬件）");
+            LeaveCriticalSection(&g_cs);
+            return 1;
+        }
+    }
     /*
      ★ 把后端的短标识写进日志。
 
@@ -2818,6 +3068,7 @@ L_FAIL:
 __declspec(dllexport) DWORD __stdcall VCI_CloseDevice(DWORD DeviceType, DWORD DeviceInd)
 {
     g_probeFailTick = 0;   /* 关设备后允许下次重新探测 */
+    if (g_shareClient || g_shareOwner) ShareClose();
     EnterCriticalSection(&g_cs);
     LogF("VCI_CloseDevice: %lu", (unsigned long)DeviceType);
 
@@ -2978,6 +3229,9 @@ __declspec(dllexport) DWORD __stdcall VCI_InitCAN(DWORD DeviceType,
                                                   VCI_INIT_CONFIG *pInit)
 {
     DWORD cnt = 1, real, rate;
+
+    /* 共享客户端：不碰硬件，直接当成功 */
+    if (g_shareClient) return STATUS_OK;
 
     EnterCriticalSection(&g_cs);
     SelectBackend();
@@ -3308,6 +3562,8 @@ __declspec(dllexport) DWORD __stdcall VCI_StartCAN(DWORD DeviceType, DWORD Devic
     DWORD cnt = 1, r = STATUS_OK;
     DWORD real = MapDevType(DeviceType, &cnt);
 
+    if (g_shareClient) return STATUS_OK;
+
     EnterCriticalSection(&g_cs);
     if (CANInd >= VCI_MAX_CHANNEL) {
         LeaveCriticalSection(&g_cs);
@@ -3464,6 +3720,15 @@ static void VxlRxPump(void)
 
     if (!g_xlPortOpen || !pXlReceiveFn || !g_opened) return;
 
+    /*
+     ★ Owner 侧：第一次泵的时候把共享内存建起来，并处理客户端的发送请求。
+       放在这里而不是 OpenDevice，是因为这里已经确定"硬件真的开了"，
+       不会出现"开了共享却没有硬件"的空壳 Owner。
+     */
+    if (g_shareWant && !g_share) ShareOpen(1);
+    if (g_shareOwner && g_share) g_share->ownerBeat = GetTickCount();  /* 心跳 */
+    ShareDrainTx();
+
     n = 128;
     ZeroMemory(evbuf, sizeof(evbuf));
     xs = pXlReceiveFn(g_xlPort, &n, (XLevent *)evbuf);
@@ -3499,6 +3764,35 @@ static void VxlRxPump(void)
             continue;
         }
         if (tag != XL_RECEIVE_MSG) continue;
+        /*
+         ★★ 错误帧必须丢掉，不能当数据帧交给上层 ★★
+
+           实测（单通道、总线上没有别的节点应答）：
+               原始事件: id=0x1AB flags=0x1 dlc=8
+                                              ↑ XL_CAN_MSG_FLAG_ERROR_FRAME
+
+           发送得不到 ACK 时，Vector 会把每一次失败重试都报成一个
+           带 ERROR_FRAME 标志的"接收事件"，id/dlc/data 还都是原来那帧。
+
+           我们原来只看 tag，不看 flags —— 于是这些错误帧被当成正常
+           收到的报文交上去。后果：
+             · 只发不收的场景下，用户会看到自己发的帧被"接收"几千次
+             · 共享模式下客户端发一帧，Owner 会广播出几百个副本
+
+           周立功的 VCI_CAN_OBJ 没有"错误帧"这个类型，所以只能丢弃 +
+           计数。日志里报一次总数，够定位问题了。
+         */
+        {
+            unsigned short efl = *(unsigned short *)(e + 20);
+            if (efl & XL_CAN_MSG_FLAG_ERROR_FRAME) {
+                static unsigned long errN = 0;
+                errN++;
+                if (errN == 1 || (errN % 1000) == 0)
+                    LogF("  ★ 收到错误帧（发送无应答/总线干扰）累计 %lu 个 —— 已丢弃，不交给上层",
+                         errN);
+                continue;
+            }
+        }
 
         {
             int vci = -1, j;
@@ -3557,6 +3851,7 @@ static void VxlRxPump(void)
 
                 CtFromVciObj(&o, &g_vciRx[vci][g_vciRxN[vci]], vci);
                 g_vciRxN[vci]++;
+                SharePublish(&o);        /* 同时广播给共享客户端 */
             }
         }
     }
@@ -3617,6 +3912,8 @@ __declspec(dllexport) DWORD __stdcall VCI_GetReceiveNum(DWORD DeviceType,
     DWORD cnt = 1, r = 0;
     DWORD real = MapDevType(DeviceType, &cnt);
 
+    if (g_shareClient) return ShareAvail();
+
     EnterCriticalSection(&g_cs);
     if (g_backend == BE_GCAN || g_backend == BE_VCI) {
         /*
@@ -3655,6 +3952,9 @@ __declspec(dllexport) DWORD __stdcall VCI_Transmit(DWORD DeviceType, DWORD Devic
     DWORD real = MapDevType(DeviceType, &cnt);
 
     if (!pSend || Len == 0) return 0;
+
+    /* 共享客户端：写进 TX 环，由 Owner 真的发出去（天然串行，不会撞） */
+    if (g_shareClient) return ShareWrite(pSend, Len);
 
     EnterCriticalSection(&g_cs);
     switch (g_backend) {
@@ -3840,6 +4140,9 @@ __declspec(dllexport) DWORD __stdcall VCI_Receive(DWORD DeviceType, DWORD Device
     (void)WaitTime;
 
     if (!pRecv || Len == 0) return 0;
+
+    /* 共享客户端：从 RX 环读，各读各的互不影响 */
+    if (g_shareClient) return ShareRead(pRecv, Len);
 
     EnterCriticalSection(&g_cs);
     switch (g_backend) {
