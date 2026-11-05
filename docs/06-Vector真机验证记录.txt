@@ -1,0 +1,214 @@
+================================================================
+  Vector VN 系列（vxlapi）真机验证记录
+  2026-11-05
+================================================================
+
+  目标：把 Vector 的盒子（VN1630A）当成周立功盒子用，让 ZCANPRO 能收发。
+
+  结果：成功。
+        ZCANPRO 接收帧计数 141，错误帧计数 0
+        逐帧显示 0x120  CAN  Rx  8  00 11 22 33 44 55 66 77
+
+
+────────────────────────────────────────────────
+  一、最终确认的链路
+────────────────────────────────────────────────
+
+  对端周立功（另一台电脑，500k，发 0x100 / 0x120）
+        │  CAN 总线
+        ▼
+  VN1630A Channel 1
+        │  vxlapi.dll
+        ▼
+  桥 USBCAN.dll（把 Vector 包装成周立功 VCI 接口）
+        │  VCI_Receive
+        ▼
+  ZCANPRO
+
+
+────────────────────────────────────────────────
+  二、三个真 bug（都卡了很久，逐个记下来）
+────────────────────────────────────────────────
+
+  【bug 1】xlOpenPort 的 permissionMask 是 in/out 参数
+
+     现象：xlOpenPort 返回 0（成功），port 也拿到了，但 perm 永远是 0。
+           我以为是接口版本号错，试了 3 / 4 / 0x300 / 0x400 / 0x500
+           五个版本，还试了重启驱动再试一轮 —— 一共 32 次尝试，全 0。
+
+     真因：permissionMask 既是"我要申请哪些通道"，也是"实际给了你哪些"。
+           手册示例第一行就写着：
+
+               xlPermissionMask = m_xlChannelMask;      ← 调用前必须先填
+               xlStatus = xlOpenPort(..., &xlPermissionMask, ...);
+
+           我们一直传 0 进去，等于一个通道都不申请。驱动就老老实实
+           返回 perm=0，而 status 仍然是 0 —— 表现成"能打开、没权限"。
+
+     修法：调用前把 permissionMask 初始化成请求的 mask。
+
+     教训：参数是 in/out 时，传 0 不会报错，只会静默地"什么都不给"。
+           这类 bug 光看返回码永远查不出来，必须对照手册示例。
+
+
+  【bug 2】xlCanTransmit 要传 XLevent，不是裸 XLcanMsg
+
+     现象：xlCanTransmit 返回 101（XL_ERR_WRONG_PARAMETER）。
+
+     真因：手册 5.5.1 说得很清楚，传给 xlCanTransmit 的是事件数组，
+           tag 必须设成 XL_TRANSMIT_MSG（=10），报文放在 tagData.msg 里：
+
+               XLevent xlEvent[100];
+               memset(xlEvent, 0, sizeof(xlEvent));   // required init.
+               xlEvent[i].tag            = XL_TRANSMIT_MSG;
+               xlEvent[i].tagData.msg.id = 0x04;
+               ...
+               xlCanTransmit(port, mask, &nCount, xlEvent);
+
+           我们直接传 XLcanMsg，驱动把 msg.id(0x321) 当成 tag 读，
+           认不出来，于是返回"参数错误"。
+
+     修法：发送改用 XLevent（桥里早就为接收定义了 48 字节的 XLevent，
+           只是发送没用它）。
+
+
+  【bug 3】xlActivateChannel 的参数顺序
+
+     现象：激活返回 112（XL_ERR_INVALID_ACCESS）。
+
+     真因：签名是 (portHandle, accessMask, busType, flags)，
+           探针里写成了 (port, mask, 0, XL_BUS_TYPE_CAN) ——
+           把 0 当 busType、1 当 flags。
+
+     注：桥里一直是对的，只有新写的探针写反了。
+         这也说明"同一件事有两份实现"迟早会不一致。
+
+
+────────────────────────────────────────────────
+  三、VN1630A 的通道结构（实测）
+────────────────────────────────────────────────
+
+  channelCount = 7，其中：
+
+      通道0  "VN1630A Channel 1"   CANpiggy 1057Gcap (Highspeed)     mask=0x1
+      通道1  "VN1630A Channel 2"   CANpiggy 1057Gcap (Highspeed)     mask=0x2
+      通道2  "VN1630A Channel 3"   On board CAN 1051cap(Highspeed)   mask=0x4
+      通道3  "VN1630A Channel 4"   On board CAN 1051cap(Highspeed)   mask=0x8
+      通道4  "VN1630A Channel 5"   On board D/A IO 1021              mask=0x10
+      通道5  "Virtual Channel 1"                                     虚拟
+      通道6  "Virtual Channel 2"                                     虚拟
+
+  ★ 前两路是插拔式收发模块（CANpiggy），后两路是板载。
+    这两组在权限、接线位置上都不通用，选错就是"打开成功、一帧没有"。
+
+  ★ 虚拟通道的判据：transceiverName 或 name 里含 "Virtual"。
+    真硬件是 "CANpiggy..." / "On board CAN..."。
+    自动探测时靠这个区分，否则虚拟通道会抢走后端。
+
+
+────────────────────────────────────────────────
+  四、XLaccess 是 8 字节（不是 4）
+────────────────────────────────────────────────
+
+  驱动不带头文件时，函数的参数宽度只能从导出名的修饰后缀反推：
+
+      _xlOpenPort@32              = 4 + 4 + 8 + 4 + 4 + 4 + 4
+      _xlDeactivateChannel@12     = 4 + 8
+      _xlCanSetChannelBitrate@16  = 4 + 8 + 4
+      _xlCanTransmit@20           = 4 + 8 + 4 + 4
+      _xlReceive@12               = 4 + 4 + 4（注意：没有 mask 参数）
+      _xlGetReceiveQueueLevel@8   = 4 + 4
+      _xlFlushReceiveQueue@4      = 4
+
+  由此推出 XLaccess（通道掩码）是 8 字节，和 channelMask 同宽。
+  写成 4 字节会让每个带 mask 的调用少压 4 字节栈 ——
+  表现是访问违例，或者读回垃圾 perm。
+
+  ★ 这是一条通用方法：没有头文件时，stdcall 修饰名的 @N 就是栈宽度，
+    可以反推出每个参数的尺寸。
+
+
+────────────────────────────────────────────────
+  五、权限被占用的现场判断
+────────────────────────────────────────────────
+
+  现象：四个通道 xlSetApplConfig 全部返回 0（分配成功），
+        但 xlOpenPort 的 perm 全 0。
+
+  真因：Vector 的规矩是"同一个通道只有第一个打开它的应用拿到 init 权限"。
+        另一个程序占着，后来的只能拿到 port、拿不到权限。
+
+  现场最常见的占用者：
+      CANapeRecordingService   ← CANape 的后台录制服务，开机就运行
+      CANoe / CANalyser / CANtrace
+
+  处理：
+      ① 停服务：net stop CANapeRecordingService（需管理员）
+      ② 或在 Vector Hardware Manager 里把通道指派给本应用
+      ③ 再试
+
+  ★ 这次实测就印证了：跑释放脚本前 perm=0，跑完四个通道全拿到权限。
+
+
+────────────────────────────────────────────────
+  六、xl_channel：把桥对齐到实际接线的通道
+────────────────────────────────────────────────
+
+  桥默认挑"第一个能拿到权限的口"。如果前几路被占，它会自动退到后面，
+  而用户的 CAN 线可能接在前面的口上 —— 结果就是
+  "打开成功、启动成功、一帧没有"。
+
+  所以 UniVciBridge.ini 支持：
+
+      xl_channel=1      ; 用 VN1630A 面板上的 CAN 1
+
+  数字就是面板编号（1 起）。写死之后桥只试那一路，
+  拿不到权限就明确报错，不会偷偷换口。
+
+
+────────────────────────────────────────────────
+  七、诊断工具（都在 tests\ 下，走两条不同的路）
+────────────────────────────────────────────────
+
+  VxlListen.exe   [波特率] [每路秒数]
+      直接调 vxlapi，逐个真 CAN 通道做完整流程并监听。
+      回答"哪一路有报文、哪一路被拒"。
+      用法：VxlListen.exe 500000 4
+
+  VciListen.exe   [型号] [通道] [秒数]
+      走完整产品路径：LoadLibrary("USBCAN.dll") → VCI_* → 桥 → vxlapi。
+      和 ZCANPRO 用的是同一条路，是最诚实的端到端测试。
+      用法：VciListen.exe 21 0 10
+
+  VxlPortProbe.exe
+      逐个通道试 xlOpenPort，报 status / port / perm。
+
+  VxlLicenseProbe.exe
+      问驱动有没有 Keyman 授权狗、各通道授权位。
+
+  ★ 这两个工具的差别很重要：
+      直连 vxlapi 通 ≠ 走桥通。
+      这次就是直连通了、走桥没通，才定位到 GetReceiveNum 的行为差异。
+
+
+────────────────────────────────────────────────
+  八、还没解决的
+────────────────────────────────────────────────
+
+  ① VCI_GetReceiveNum 对 Vector 后端硬编码返回 1
+     上层每次问"有几帧"都答 1，然后 Receive 可能返回 0。
+     功能不影响，但会空转。应该改成先 xlReceive 灌进桥缓冲再报实际数。
+
+  ② 只有一路在跑
+     ZCANPRO 按 USBCAN-II 打开 2 路，但桥只映射了 1 个 Vector 通道。
+     第二路没有真正对应的硬件通道。
+
+  ③ 总线错误状态没有回传给上位机
+     桥能读到 XL_CHIP_STATE（busStatus / TEC / REC），但只写日志，
+     ZCANPRO 看不到"总线关闭"这类信息，只能干等。
+
+  ④ TX 回显
+     Vector 会把本应用发出去的帧回显到接收队列，
+     所以 ZCANPRO 会看到自己发的帧。这是 CAN 工具的常见行为，暂不处理。
+
+================================================================
