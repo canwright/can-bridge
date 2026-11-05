@@ -675,6 +675,10 @@ typedef struct {
 /* 通道总线兼容性位（VxlApiModel.h 里有同名定义；桥不包含那个头，这里补一份） */
 #define XL_BUS_COMPATIBLE_CAN       0x00000001
 #define XL_BUS_ACTIVE_CAP_CAN       0x00010000
+/* 常用错误码（数值来自 XL Driver Library Manual 18.1 节的错误码表） */
+#define XL_ERR_NOT_IMPLEMENTED      117
+#define XL_ERR_NO_DATA_DETECTED     143
+#define XL_ERR_INIT_ACCESS_MISSING  158
 #define XL_INTERFACE_VERSION_V3     3
 
 /* ═══ 版本标记 ═══
@@ -682,7 +686,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-vector-auto"
+#define UNIVCI_BUILD_TAG            "2026-11-05-vector-perm"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -715,6 +719,10 @@ typedef XLstatus (__stdcall *PF_xlCanSetChannelBitrate)(XLportHandle, XLaccess,
 typedef XLstatus (__stdcall *PF_xlActivateChannel) (XLportHandle, XLaccess,
                                                     unsigned int, unsigned int);
 typedef XLstatus (__stdcall *PF_xlDeactivateChannel)(XLportHandle, XLaccess);
+/* 把通道分配给应用；不分配的话 xlOpenPort 只给 port 不给 perm */
+typedef XLstatus (__stdcall *PF_xlSetApplConfig)   (const char *, unsigned int,
+                                                    unsigned int, unsigned int,
+                                                    unsigned int, unsigned int);
 typedef XLstatus (__stdcall *PF_xlCanTransmit)     (XLportHandle, XLaccess,
                                                     unsigned int *, void *);
 typedef XLstatus (__stdcall *PF_xlReceive)         (XLportHandle,
@@ -860,6 +868,15 @@ static PF_xlClosePort        pXlClosePort = NULL;
 static PF_xlCanSetChannelBitrate pXlSetBitrate = NULL;
 static PF_xlActivateChannel  pXlActivate = NULL;
 static PF_xlDeactivateChannel pXlDeactivate = NULL;
+static PF_xlSetApplConfig    pXlSetAppl = NULL;
+
+/* 每个可用 CAN 通道的硬件定位信息，xlSetApplConfig 要用。
+   VN1630 有 4 个 CAN 口，逐个试，某个被占就换下一个。 */
+typedef struct { XLaccess mask; unsigned int hwType, hwIndex, hwChannel; } XLCANINFO;
+#define XL_MAX_CAN_INFO 32
+static XLCANINFO g_xlCan[XL_MAX_CAN_INFO];
+static int       g_xlCanN = 0;
+static const char *g_xlAppName = "UniVciBridge";
 static PF_xlCanTransmit      pXlTransmit = NULL;
 static PF_xlReceive          pXlReceiveFn = NULL;
 static PF_xlFlushReceiveQueue pXlFlushRx = NULL;
@@ -1234,6 +1251,7 @@ static int ProbeVector(const wchar_t *dir, int explicit_req)
     pXlReceiveFn  = (PF_xlReceive)         GetProcAddress(h, "xlReceive");
     pXlFlushRx    = (PF_xlFlushReceiveQueue)GetProcAddress(h, "xlFlushReceiveQueue");
     pXlErrStr     = (PF_xlGetErrorString)  GetProcAddress(h, "xlGetErrorString");
+    pXlSetAppl    = (PF_xlSetApplConfig)   GetProcAddress(h, "xlSetApplConfig");
 
     if (!pXlOpen || !pXlCfg || !pXlOpenPort || !pXlTransmit || !pXlReceiveFn) {
         LogF("VECTOR: vxlapi.dll 关键导出缺失");
@@ -1259,6 +1277,7 @@ static int ProbeVector(const wchar_t *dir, int explicit_req)
                 int realHw = 0;
                 g_xlChanCount = (int)cfg->channelCount;
                 g_xlAvailMask = 0;
+                g_xlCanN = 0;
                 /* ★ 关键：Vector 的"虚拟通道"不是硬件。
                    判据：transceiverName / name 里含 "Virtual"。
                    真 VN1630 的 transceiverName 是 "CANpiggy" 之类。 */
@@ -1272,8 +1291,16 @@ static int ProbeVector(const wchar_t *dir, int explicit_req)
                         continue;
                     }
                     realHw = 1;
-                    if (c->channelBusCapabilities & XL_BUS_COMPATIBLE_CAN)
+                    if (c->channelBusCapabilities & XL_BUS_COMPATIBLE_CAN) {
                         g_xlAvailMask |= c->channelMask;
+                        if (g_xlCanN < XL_MAX_CAN_INFO) {
+                            g_xlCan[g_xlCanN].mask      = c->channelMask;
+                            g_xlCan[g_xlCanN].hwType    = c->hwType;
+                            g_xlCan[g_xlCanN].hwIndex   = c->hwIndex;
+                            g_xlCan[g_xlCanN].hwChannel = c->hwChannel;
+                            g_xlCanN++;
+                        }
+                    }
                     LogF("VECTOR:   通道%lu \"%s\" 真硬件 transceiver=\"%s\" mask=0x%I64X",
                          (unsigned long)i, c->name, c->transceiverName,
                          (unsigned long long)c->channelMask);
@@ -2262,14 +2289,69 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
             LogF("  ★ Vector 没有可用通道（没接硬件）");
             goto L_FAIL;
         }
-        /* 取最低位的 1 作为本通道 mask */
-        mask = g_xlAvailMask & (~g_xlAvailMask + 1);
+        /*
+         ★ 逐个通道试，而不是只试最低位那一个。
 
-        st = pXlOpenPort(&g_xlPort, "UniVciBridge", mask, &perm, 8192,
-                         XL_INTERFACE_VERSION_V3, XL_BUS_TYPE_CAN);
-        LogF("  Vector xlOpenPort(mask=0x%I64X) -> %lu port=%lu perm=0x%I64X",
-             (unsigned long long)mask, (unsigned long)st,
-             (unsigned long)g_xlPort, (unsigned long long)perm);
+           原因（VN1630A 实测）：一块 VN1630 有 4 个 CAN 口，
+           其中某个口可能已经被别的程序（CANoe / CANape / 上次残留）
+           占着 init 权限，这时 perm 会是 0。只试第一个口就判失败
+           太武断，换一个口往往就能用。
+
+           每一步都先 xlSetApplConfig 把口分配给本应用 ——
+           Vector 的规矩：没分配过就永远拿不到 perm。
+        */
+        {
+            int ci, tried = 0, gotPort = 0;
+            XLaccess tryMask = g_xlAvailMask;
+
+            st = XL_ERR_NOT_IMPLEMENTED;   /* 先假设全失败 */
+            for (ci = 0; ci < g_xlCanN && !gotPort; ci++) {
+                XLaccess one = g_xlCan[ci].mask;
+                XLaccess p2 = 0;
+                XLstatus r;
+
+                if (!(tryMask & one)) continue;      /* 已被试过/不可用 */
+                tried++;
+
+                /* 先分配：应用名、应用通道号 0、硬件定位、总线类型 */
+                if (pXlSetAppl) {
+                    XLstatus sa = pXlSetAppl(g_xlAppName, 0,
+                                             g_xlCan[ci].hwType,
+                                             g_xlCan[ci].hwIndex,
+                                             g_xlCan[ci].hwChannel,
+                                             XL_BUS_TYPE_CAN);
+                    LogF("  Vector xlSetApplConfig(%s, ch0, hwType=%u, hwIndex=%u, hwChannel=%u) -> %lu",
+                         g_xlAppName, g_xlCan[ci].hwType, g_xlCan[ci].hwIndex,
+                         g_xlCan[ci].hwChannel, (unsigned long)sa);
+                }
+
+                g_xlPort = 0;
+                r = pXlOpenPort(&g_xlPort, g_xlAppName, one, &p2, 8192,
+                                XL_INTERFACE_VERSION_V3, XL_BUS_TYPE_CAN);
+                LogF("  Vector xlOpenPort(mask=0x%I64X) -> %lu port=%lu perm=0x%I64X",
+                     (unsigned long long)one, (unsigned long)r,
+                     (unsigned long)g_xlPort, (unsigned long long)p2);
+
+                if (r == XL_SUCCESS && p2 != 0) {
+                    /* 拿到权限，就用这个口 */
+                    mask = one;
+                    perm = p2;
+                    st = r;
+                    gotPort = 1;
+                } else {
+                    /* 没权限：先把 port 关掉，再试下一个口，别泄漏 */
+                    if (pXlClosePort && g_xlPort) pXlClosePort(g_xlPort);
+                    g_xlPort = 0;
+                    st = r;
+                    perm = 0;
+                }
+            }
+            if (!gotPort) {
+                LogF("  ★ 试了 %d 个 Vector 通道，都没拿到 init 权限", tried);
+                st = (tried ? XL_ERR_INIT_ACCESS_MISSING : XL_ERR_NO_DATA_DETECTED);
+                goto L_FAIL;
+            }
+        }
         if (st != XL_SUCCESS) { goto L_FAIL; }
 
         g_xlMask = mask & (perm ? perm : mask);
@@ -2292,8 +2374,11 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
                （没在 Vector Hardware Config 里分配，或被别的程序占着）。
                这种情况下 xlCanTransmit 必然失败，没有任何可用性。
              */
-            LogF("  ★ Vector 权限为 0（本程序没被分配该通道），按【失败】处理");
-            LogF("     → 去 Vector Hardware Config 里把这个通道分配给本程序");
+            LogF("  ★ Vector 权限为 0，按【失败】处理");
+            LogF("     桥已自动尝试了 xlSetApplConfig 分配通道，仍失败说明：");
+            LogF("       ① 通道被别的程序占着 → 关掉 CANoe / CANape / CANalyser");
+            LogF("       ② 需要在 Vector Hardware Manager 里手动分配");
+            LogF("          Application 列表里找 \"%s\" 并指派一个通道", g_xlAppName);
             if (pXlClosePort && g_xlPort) pXlClosePort(g_xlPort);
             g_xlPort = 0;
             g_xlPortOpen = 0;
