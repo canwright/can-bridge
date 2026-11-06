@@ -690,7 +690,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-05-zlgfirst"
+#define UNIVCI_BUILD_TAG            "2026-11-06-quietlog"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -3861,8 +3861,50 @@ static void VxlRxPump(void)
             else if (bs & XL_CHIPSTAT_ERROR_PASSIVE) st = "★ 错误被动（REC/TEC>127）";
             else if (bs & XL_CHIPSTAT_ERROR_WARNING) st = "错误警告";
             else if (bs & XL_CHIPSTAT_ERROR_ACTIVE)  st = "错误主动（正常态）";
-            LogF("  Vector 总线状态: busStatus=0x%X (%s) TEC=%u REC=%u",
-                 bs, st, (unsigned)e[17], (unsigned)e[18]);
+            /*
+             ★★ 只在状态【变化】时记一条，正常态不刷屏 ★★
+
+                上位机（ZCANPRO）会频繁轮询 VCI_ReadErrInfo，而每次都会
+                xlCanRequestChipState()，驱动就回一个事件。如果每个事件都
+                打日志，实测一秒几十上百行，日志几秒涨到几百 KB ——
+                而且 LogF 每次都是 _wfopen/fclose（几百微秒），
+                轮询就变成了性能负担。
+
+                所以：状态没变什么都不打，变了才记。
+                异常态（总线关闭 / 被动 / 警告）额外每 5 秒重复一次，
+                免得长时间异常只在开头出现，回头翻日志看不见。
+            */
+            {
+                static int   lb[VCI_MAX_CHANNEL], lt[VCI_MAX_CHANNEL], lr[VCI_MAX_CHANNEL];
+                static DWORD lk[VCI_MAX_CHANNEL];
+                static int   inited = 0;
+                int ci = (csi >= 0 && csi < VCI_MAX_CHANNEL) ? csi : 0;
+                DWORD now = GetTickCount();
+                int abnormal, changed;
+
+                if (!inited) {
+                    int z;
+                    for (z = 0; z < VCI_MAX_CHANNEL; z++) {
+                        lb[z] = -1; lt[z] = -1; lr[z] = -1; lk[z] = 0;
+                    }
+                    inited = 1;
+                }
+                abnormal = (bs & (XL_CHIPSTAT_BUSOFF |
+                                  XL_CHIPSTAT_ERROR_PASSIVE |
+                                  XL_CHIPSTAT_ERROR_WARNING)) != 0;
+                changed = (lb[ci] != (int)bs) ||
+                          (lt[ci] != (int)e[17]) ||
+                          (lr[ci] != (int)e[18]);
+
+                if (changed || (abnormal && (DWORD)(now - lk[ci]) >= 5000)) {
+                    LogF("  Vector 总线状态: busStatus=0x%X (%s) TEC=%u REC=%u",
+                         bs, st, (unsigned)e[17], (unsigned)e[18]);
+                    lb[ci] = (int)bs;
+                    lt[ci] = (int)e[17];
+                    lr[ci] = (int)e[18];
+                    lk[ci] = now;
+                }
+            }
             continue;
         }
         if (tag != XL_RECEIVE_MSG) continue;

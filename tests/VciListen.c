@@ -163,6 +163,80 @@ int main(int argc, char **argv)
         fC(dev, 0);
         return 0;
     }
+    if (argc >= 3 && strcmp(argv[2], "pollerr") == 0) {
+        /*
+         ★ 高频轮询 VCI_ReadErrInfo / VCI_ReadCANStatus，模拟上位机行为
+
+           为什么加这个模式：
+             桥在 VCI_ReadErrInfo 里会 xlCanRequestChipState()，驱动回一个
+             芯片状态事件，泵里就打一行日志。上位机（ZCANPRO）每秒轮询
+             几十次，如果每次轮询都记日志，日志几秒就涨到几百 KB；
+             而且每次 LogF 都要开关一次文件（几百微秒），
+             轮询本身变成了性能负担。
+
+             只在 status 模式调一次是测不出这个问题的 —— 必须连续调。
+        */
+        HMODULE dp = LoadLibraryA("USBCAN.dll");
+        PF_OPEN  pO; PF_INIT pI; PF_START pS; PF_CLOSE pC;
+        VCI_CFG cp;
+        unsigned char err[16];
+        unsigned int  stt[8];
+        int n = (argc >= 4) ? atoi(argv[3]) : 500;
+        int i, okc = 0, oks = 0;
+
+        ch = 0;
+        printf("=== 高频轮询 VCI_ReadErrInfo %d 次 ===\n\n", n);
+        if (!dp) { printf("  加载 USBCAN.dll 失败\n"); return 1; }
+        {
+            typedef DWORD (__stdcall *PF_E)(DWORD, DWORD, DWORD, void *);
+            PF_E fE = (PF_E)GetProcAddress(dp, "VCI_ReadErrInfo");
+            PF_E fS = (PF_E)GetProcAddress(dp, "VCI_ReadCANStatus");
+
+            pO = (PF_OPEN) GetProcAddress(dp, "VCI_OpenDevice");
+            pC = (PF_CLOSE)GetProcAddress(dp, "VCI_CloseDevice");
+            pI = (PF_INIT) GetProcAddress(dp, "VCI_InitCAN");
+            pS = (PF_START)GetProcAddress(dp, "VCI_StartCAN");
+            if (!pO || !fE) { printf("  缺导出\n"); return 1; }
+
+            printf("  OpenDevice -> %lu\n", (unsigned long)pO(dev, 0, 0));
+            ZeroMemory(&cp, sizeof(cp));
+            cp.AccMask = 0xFFFFFFFF;
+            cp.Filter  = 1;
+            cp.Timing0 = 0x00;
+            cp.Timing1 = 0x1C;
+            /*
+             ★ 分开调用：printf 的参数求值顺序未定义，写在一起会把
+               StartCAN 的返回值打印成 InitCAN 的，看起来像桥的 bug。
+            */
+            {
+                DWORD ri = pI ? pI(dev, 0, ch, &cp) : 0xFFFFFFFF;
+                DWORD rs = pS ? pS(dev, 0, ch) : 0xFFFFFFFF;
+                printf("  InitCAN -> %lu  StartCAN -> %lu\n\n",
+                       (unsigned long)ri, (unsigned long)rs);
+            }
+            Sleep(200);
+
+            for (i = 0; i < n; i++) {
+                ZeroMemory(err, sizeof(err));
+                if (fE(dev, 0, ch, err) == 1) okc++;   /* STATUS_OK = 1，不是 0 */
+                if (fS) {
+                    ZeroMemory(stt, sizeof(stt));
+                    if (fS(dev, 0, ch, stt) == 1) oks++;
+                }
+            }
+
+            printf("  ReadErrInfo   成功 %d / %d\n", okc, n);
+            printf("  ReadCANStatus 成功 %d / %d\n", oks, n);
+            printf("  最后 ErrCode=%u  TEC=%u  REC=%u\n",
+                   err[0], err[1], err[2]);
+            if (pC) pC(dev, 0);
+        }
+        FreeLibrary(dp);
+        printf("\n  ★ 去看 UniVciBridge.log 涨了多少行：\n");
+        printf("    正常几乎不涨（只在状态变化时记一条）\n");
+        printf("    涨上千行说明日志又刷屏了\n");
+        return 0;
+    }
     if (argc >= 3 && strcmp(argv[2], "status") == 0) {
         /* 读 VCI_ReadErrInfo / VCI_ReadCANStatus，验证错误状态与位时序回传 */
         HMODULE d8 = LoadLibraryA("USBCAN.dll");
