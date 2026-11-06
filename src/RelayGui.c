@@ -112,7 +112,7 @@ static int StartRelay(HWND hwnd)
     }
 
     /* 型号：周立功用 21（2E-U），其它家由桥自己映射 */
-    devType = (strcmp(kBackendVal[be], "vci") == 0) ? 21u : 21u;
+    devType = 4u;   /* 实测：USBCAN-II 是型号 4（21 会 InitCAN 失败） */
 
     sprintf(cmd, "\"%s\" %d %s %lu", exe, vc, kBaudVal[bd], (unsigned long)devType);
 

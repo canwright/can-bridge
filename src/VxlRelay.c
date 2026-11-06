@@ -263,6 +263,7 @@ int main(int argc, char **argv)
     int vchan = (argc >= 2) ? atoi(argv[1]) : 2;
     unsigned int baud = (argc >= 3) ? (unsigned int)strtoul(argv[2], NULL, 10) : 500000u;
     DWORD devType = (argc >= 4) ? (DWORD)strtoul(argv[3], NULL, 10) : 21u;
+    int   testMode = (argc >= 5) ? atoi(argv[4]) : 0;
 
     HMODULE hv = NULL, hb = NULL;
     PF_xlOpenDriver pOpen; PF_xlCloseDriver pClose; PF_xlGetDriverConfig pCfg;
@@ -353,22 +354,61 @@ int main(int argc, char **argv)
     if (!found) { RLog("\n[x] 没有第 %d 个虚拟通道（驱动里只有 %d 个）\n", vchan, i); return 1; }
 
     /* ---- 打开端口（permissionMask 必须先填好，这是踩过的坑） ---- */
-    if (pAppl) pAppl("UniVciRelay", 0, cfg.channel[vchanIndex].hwType,
-                     cfg.channel[vchanIndex].hwIndex,
-                     cfg.channel[vchanIndex].hwChannel, XL_BUS_TYPE_CAN);
-    perm = wantMask;
+    /*
+     ★ 自动挑一条【能拿到权限】的虚拟通道 ★
+
+       原来固定用"第 N 路"，但 Vector 的虚拟通道是
+       一个应用占死一路（Init 权限独占）。CANape 已经占了一路，
+       我们再打开同一路只会拿到 perm=0。
+
+       所以：从选定的那一路开始，逐条试；拿不到就换下一条，
+       直到 perm != 0 为止。哪条能用就用哪条，不再依赖手动配置。
+     */
     {
-        XLstatus r = pPort(&port, "UniVciRelay", wantMask, &perm, 8192,
-                           XL_INTERFACE_VERSION_V3, XL_BUS_TYPE_CAN);
-        RLog("[..] xlOpenPort -> %lu port=%lu perm=0x%I64X\n",
-               (unsigned long)r, (unsigned long)port, (unsigned long long)perm);
-        if (r != XL_SUCCESS || perm == 0) {
-            RLog("[x] 拿不到虚拟通道权限 —— 是不是 CANape 已经占了这一路？\n");
-            RLog("    换一个 <虚拟通道序号> 再试（CANape 占一路，我们占相邻那路）\n");
+        int tried[64], nTried = 0, ok = 0, k;
+        XLaccess tryMask[64];
+        int tryIdx[64];
+        int seen2 = 0;
+        for (k = 0; k < (int)cfg.channelCount && k < 64; k++) {
+            XLchannelConfig *c = &cfg.channel[k];
+            if (!StrContainsNoCase(c->name, "virtual") &&
+                !StrContainsNoCase(c->transceiverName, "virtual")) continue;
+            seen2++;
+            if (seen2 < vchan) continue;          /* 从选定的那一路开始 */
+            tryMask[nTried] = c->channelMask;
+            tryIdx[nTried]  = c->channelIndex;
+            nTried++;
+            if (nTried >= 16) break;
+        }
+        for (k = 0; k < nTried; k++) {
+            XLaccess pm = tryMask[k];
+            XLstatus rr;
+            if (pAppl) pAppl("UniVciRelay", 0,
+                             cfg.channel[tryIdx[k]].hwType,
+                             cfg.channel[tryIdx[k]].hwIndex,
+                             cfg.channel[tryIdx[k]].hwChannel,
+                             XL_BUS_TYPE_CAN);
+            port = 0;
+            rr = pPort(&port, "UniVciRelay", tryMask[k], &pm, 8192,
+                       XL_INTERFACE_VERSION_V3, XL_BUS_TYPE_CAN);
+            RLog("[..] 试第 %d 个虚拟通道 mask=0x%I64X -> rc=%lu perm=0x%I64X\r\n",
+                 k + 1, (unsigned long long)tryMask[k],
+                 (unsigned long)rr, (unsigned long long)pm);
+            if (rr == XL_SUCCESS && pm != 0) {
+                wantMask = tryMask[k];
+                vchanIndex = (unsigned)tryIdx[k];
+                ok = 1;
+                RLog("[ok] 用第 %d 个虚拟通道（mask=0x%I64X）—— 权限已拿到\r\n",
+                     k + 1, (unsigned long long)wantMask);
+                break;
+            }
+            if (port) { if (pClosePort) pClosePort(port); port = 0; }
+        }
+        if (!ok) {
+            RLog("[x] 所有虚拟通道都拿不到权限 —— CANape 是不是把所有通道都占了？\r\n");
             return 1;
         }
-    }
-    if (pBitrate) RLog("[..] xlCanSetChannelBitrate(%u) -> %lu\n",
+    }    if (pBitrate) RLog("[..] xlCanSetChannelBitrate(%u) -> %lu\n",
                          baud, (unsigned long)pBitrate(port, wantMask, baud));
     if (pAct) RLog("[..] xlActivateChannel -> %lu\n",
                      (unsigned long)pAct(port, wantMask, XL_BUS_TYPE_CAN, 0));
@@ -397,6 +437,8 @@ int main(int argc, char **argv)
     }
 
     RLog("\n[..] 打开硬件（型号 %lu）…\n", (unsigned long)devType);
+    { DWORD rop = pVOpen(devType, 0, 0);
+      RLog("[..] VCI_OpenDevice(%lu) -> %lu %s\n", (unsigned long)devType, (unsigned long)rop, rop == 1 ? "OK" : "FAILED"); }
     if (pVOpen(devType, 0, 0) != 1) { RLog("[x] VCI_OpenDevice 失败\n"); return 1; }
     {
         VCI_INIT_CONFIG_EU ic;
@@ -418,6 +460,8 @@ int main(int argc, char **argv)
         XLevent ev[256];
         VCI_CAN_OBJ objs[256];
         DWORD lastStat = GetTickCount();
+        DWORD lastTest = GetTickCount();
+        unsigned txSeq = 0;
 
         for (;;) {
             unsigned int cnt = 0;
@@ -444,7 +488,8 @@ int main(int argc, char **argv)
                 }
                 if (m) {
                     DWORD sent = pVTx(devType, 0, 0, objs, m);
-                    if (sent <= m) nToHw += sent;   /* 返回值不合理就不计，避免计数爆掉 */
+                    if (sent <= m) nToHw += sent;
+                    else RLog("\n[ERR] VCI_Transmit 返回异常 %lu (请求 %u 帧)", (unsigned long)sent, m);   /* 返回值不合理就不计，避免计数爆掉 */
                 }
             }
 
@@ -468,16 +513,33 @@ int main(int argc, char **argv)
                     if (m) {
                         XLstatus tr = pTx(port, wantMask, m, tx);
                         if (tr == XL_SUCCESS) nToVxl += m;
+                        else RLog("\n[ERR] xlCanTransmit 失败 rc=%lu (%u 帧)", (unsigned long)tr, m);
                     }
                 }
             }
 
+            if (testMode) {
+                DWORD n2 = GetTickCount();
+                if ((DWORD)(n2 - lastTest) >= 500) {
+                    XLevent t1; XLstatus tr;
+                    lastTest = n2;
+                    ZeroMemory(&t1, sizeof(t1));
+                    t1.tag = XL_TRANSMIT_MSG; t1.chanIndex = (BYTE)vchanIndex;
+                    t1.tagData.msg.id = 0x123; t1.tagData.msg.dlc = 8;
+                    t1.tagData.msg.data[0] = (BYTE)(txSeq & 0xFF);
+                    t1.tagData.msg.data[1] = (BYTE)((txSeq >> 8) & 0xFF);
+                    t1.tagData.msg.data[2] = 0xAA; t1.tagData.msg.data[3] = 0x55;
+                    tr = pTx(port, wantMask, 1, &t1);
+                    if (tr != XL_SUCCESS) RLog("\r  [测试发帧] rc=%lu\r\n", (unsigned long)tr);
+                    txSeq++;
+                }
+            }
             /* 每秒报一次数 */
             {
                 DWORD now = GetTickCount();
                 if ((DWORD)(now - lastStat) >= 1000) {
                     lastStat = now;
-                    RLog("\r  虚拟->硬件 %lu 帧    硬件->虚拟 %lu 帧    丢掉错误帧 %lu 个   ",
+                    RLog("\n[STAT] t=%lu 虚拟->硬件 %lu  硬件->虚拟 %lu  丢错帧 %lu",  (unsigned long)(now/1000),
                            nToHw, nToVxl, nErrSkip);
                     fflush(stdout);
                 }

@@ -78,17 +78,21 @@ static PF_recv pRecv; static PF_xmit pXmit;
 static PF_vOpen pVOpen; static PF_vClose pVClose; static PF_vInit pVInit;
 static PF_vStart pVStart; static PF_vTx pVTx; static PF_vRx pVRx;
 
-static volatile LONG g_run=0; static HANDLE g_thr=0;
+static volatile LONG g_run=0;
 static XLportHandle g_port=0; static XLaccess g_mask=0; static unsigned g_vidx=0;
 static DWORD g_dev=21; static unsigned long g_toHw=0,g_toVxl=0,g_drop=0;
 static CRITICAL_SECTION g_cs;
-static HWND g_log=0,g_be=0,g_hw=0,g_vch=0,g_baud=0,g_ape=0,g_stat=0,g_main=0;
+static HWND g_log=0,g_be=0,g_hw=0,g_vch=0,g_baud=0,g_ape=0,g_stat=0,g_main=0,g_devc=0;
+static int g_drvOpen=0;
+static int g_devOpen=0;
+static int g_devStarted=0;   /* 通道只能 Start 一次，重复 Start 会把桥搞崩 */   /* 桥的设备句柄：打开后不再关，避免"关了又开"把桥搞崩 */   /* xlOpenDriver 只能调一次，重复调用会把驱动搞坏 */
 
 #define ID_BE 1001
 #define ID_HW 1002
 #define ID_VCH 1003
 #define ID_BAUD 1004
 #define ID_APE 1005
+#define ID_DEV 1006
 #define ID_ASSIGN 1010
 #define ID_START 1011
 #define ID_STOP 1012
@@ -96,11 +100,24 @@ static HWND g_log=0,g_be=0,g_hw=0,g_vch=0,g_baud=0,g_ape=0,g_stat=0,g_main=0;
 #define ID_RESTORE 1014
 #define ID_LOG 1020
 #define ID_STAT 1021
+#define ID_TX 1030
 
 static const char*kBeVal[]={"auto","vci","pcan","gcan","kvaser","tosun"};
 static const char*kBeTxt[]={"自动探测","周立功","PEAK","广成","Kvaser","同星"};
 static const char*kBdVal[]={"100000","125000","250000","500000","800000","1000000"};
 static const char*kBdTxt[]={"100K","125K","250K","500K","800K","1M"};
+
+static DWORD DevFromCombo(void)
+{
+    char b[32]; int i;
+    if(!g_devc) return 21;
+    i=(int)SendMessageA(g_devc,CB_GETCURSEL,0,0);
+    if(i<0) return 21;
+    GetWindowTextA(g_devc,b,32);
+    { char *p=b; while(*p&&(*p<'0'||*p>'9')) p++;
+      if(*p) return (DWORD)strtoul(p,0,10); }
+    return 21;
+}
 
 static void SelfDir(char*out,DWORD n){GetModuleFileNameA(0,out,n);{char*s=strrchr(out,'\\');if(s)*s=0;}}
 
@@ -162,7 +179,10 @@ static int ListCh(XLdriverConfig*cf,int*virt)
 {
     int i; *virt=0;
     if(!LoadVxl()) return 0;
-    if(pOpenDrv()!=XL_SUCCESS){UI("[x] xlOpenDriver 失败");return 0;}
+    if(!g_drvOpen){
+        if(pOpenDrv()!=XL_SUCCESS){UI("[x] xlOpenDriver 失败");return 0;}
+        g_drvOpen=1;
+    }
     ZeroMemory(cf,sizeof(*cf));
     if(pGetCfg(cf)!=XL_SUCCESS){UI("[x] xlGetDriverConfig 失败");return 0;}
     UI("[诊断] 驱动报告 %lu 个通道",(unsigned long)cf->channelCount);
@@ -175,23 +195,34 @@ static int ListCh(XLdriverConfig*cf,int*virt)
     return 1;
 }
 
+static void DumpBridgeLog(void)
+{
+    char d[MAX_PATH],p[MAX_PATH];
+    SelfDir(d,MAX_PATH); sprintf(p,"%s\\UniVciBridge.log",d);
+    if(GetFileAttributesA(p)==INVALID_FILE_ATTRIBUTES)
+        UI("[日志] 没有 UniVciBridge.log —— 说明桥还没跑过");
+    else
+        UI("[日志] 桥的详细日志在这里（用记事本打开）：%s",p);
+}
 static void DoDiag(void)
 {
     XLdriverConfig cfg; int v=0;
     UI("──────── 诊断 ────────");
     if(!ListCh(&cfg,&v)) return;
     if(v<2) UI("[!] 虚拟通道不足 2 个：Vector Hardware Config 里需要至少两条 Virtual CAN");
+    g_dev = DevFromCombo();
     if(LoadBrg()){
-        DWORD r=pVOpen(g_dev,0,0);
+        DWORD r = g_devOpen ? 1 : pVOpen(g_dev,0,0);
+        if(r==1) g_devOpen=1;
         UI("[诊断] 盒子 OpenDevice -> %lu %s",(unsigned long)r,r==1?"OK":"失败");
         if(r==1){
             VCI_INIT_CONFIG_EU ic; ZeroMemory(&ic,sizeof(ic));
             ic.AccMask=0xFFFFFFFFu; ic.Filter=1; ic.Timing0=0; ic.Timing1=0x1C;
-            UI("[诊断] InitCAN -> %lu",(unsigned long)pVInit(g_dev,0,0,&ic));
-            UI("[诊断] StartCAN -> %lu",(unsigned long)pVStart(g_dev,0,0));
-            pVClose(g_dev,0);
+            UI("[诊断] 型号 %lu：InitCAN -> %lu",(unsigned long)g_dev,(unsigned long)pVInit(g_dev,0,0,&ic));
+            UI("[诊断] 只做初始化检查，不启动通道（避免和【启动中继】抢着 Start）");
         } else UI("[!] 盒子没插、或被别的程序占着");
     }
+    DumpBridgeLog();
     UI("──────── 结束 ────────");
 }
 
@@ -218,11 +249,12 @@ static void DoAssign(void)
     UI("         CANape 如果开着，要重开才生效。");
 }
 
-static DWORD WINAPI Thread(LPVOID pv)
+static void PollOnce(void)
 {
-    XLevent ev[256]; VCI_CAN_OBJ ob[256]; static XLevent tx[256];
-    DWORD last=GetTickCount();
-    while(g_run){
+    XLevent ev[64]; VCI_CAN_OBJ ob[64]; static XLevent tx[64];
+    DWORD last=0;
+    if(!g_run) return;
+    {
         unsigned cnt=0;
         if(pRecv(g_port,&cnt,20,ev)==XL_SUCCESS&&cnt){
             unsigned k,m=0;
@@ -236,14 +268,14 @@ static DWORD WINAPI Thread(LPVOID pv)
                 ob[m].ExternFlag=(ev[k].tagData.msg.flags&2)?1:0;
                 ob[m].RemoteFlag=(ev[k].tagData.msg.flags&1)?1:0;
                 ob[m].TimeStamp=(DWORD)(ev[k].timeStamp/100000ULL); ob[m].TimeFlag=1;
-                if(++m>=256)break;
+                if(++m>=64)break;
             }
             if(m){DWORD s=pVTx(g_dev,0,0,ob,m); if(s<=m)g_toHw+=s;}
         }
-        {DWORD got=pVRx(g_dev,0,0,ob,256,0);
-         if(got>0&&got<=256){
+        {DWORD got=0; if(0) got=pVRx(g_dev,0,0,ob,64,0);   /* 二分：先不碰桥的接收 */
+         if(got>0&&got<=64){
             unsigned k,m=0; ZeroMemory(tx,sizeof(tx));
-            for(k=0;k<got&&k<256;k++){
+            for(k=0;k<got&&k<64;k++){
                 tx[m].tag=XL_TX; tx[m].chanIndex=(BYTE)g_vidx;
                 tx[m].tagData.msg.id=ob[k].ID;
                 tx[m].tagData.msg.dlc=(WORD)(ob[k].DataLen>8?8:ob[k].DataLen);
@@ -259,9 +291,8 @@ static DWORD WINAPI Thread(LPVOID pv)
             sprintf(b,"虚拟->硬件 %lu 帧    硬件->虚拟 %lu 帧    丢错误帧 %lu",g_toHw,g_toVxl,g_drop);
             if(g_stat) SetWindowTextA(g_stat,b);
          }}
-        if(!cnt) Sleep(2);
+
     }
-    return 0;
 }
 
 static void DoStart(void)
@@ -295,28 +326,66 @@ static void DoStart(void)
     UI("[中继] 设波特率 %u -> %lu",baud,(unsigned long)pSetBaud(g_port,g_mask,baud));
     UI("[中继] 激活 -> %lu",(unsigned long)pAct(g_port,g_mask,XL_BUS_TYPE_CAN,0));
 
+    g_dev = DevFromCombo();
     if(!LoadBrg()){pClosePort(g_port);g_port=0;return;}
-    {DWORD r=pVOpen(g_dev,0,0);
-     UI("[中继] 盒子 OpenDevice -> %lu",(unsigned long)r);
+    {DWORD r = g_devOpen ? 1 : pVOpen(g_dev,0,0);
+     if(r==1) g_devOpen=1;
+     UI("[中继] 盒子 OpenDevice -> %lu%s",(unsigned long)r,g_devOpen?" (复用已打开的句柄)":"");
      if(r!=1){UI("[x] 盒子打不开（没插/被占用）");pClosePort(g_port);g_port=0;return;}}
+    if(g_devStarted){ UI("[中继] 通道已启动过，直接复用"); }
+    else {
     {VCI_INIT_CONFIG_EU ic; ZeroMemory(&ic,sizeof(ic));
+     DWORD ri, rs;
      ic.AccMask=0xFFFFFFFFu; ic.Filter=1; ic.Timing0=0; ic.Timing1=0x1C;
-     UI("[中继] InitCAN -> %lu",(unsigned long)pVInit(g_dev,0,0,&ic));}
-    UI("[中继] StartCAN -> %lu",(unsigned long)pVStart(g_dev,0,0));
+     ri=pVInit(g_dev,0,0,&ic);
+     UI("[中继] InitCAN -> %lu",(unsigned long)ri);
+     if(ri==0){
+        UI("[x] 初始化失败 —— 型号不对或盒子被占用。");
+        UI("    换【盒子型号】再试：21 / 20 / 4 / 3 逐个试");
+        if(pVClose) pVClose(g_dev,0);
+        if(pClosePort) pClosePort(g_port);
+        g_port=0;
+        return;                 /* 关键：绝不带着坏状态起线程，否则宿主崩溃 */
+     }
+     rs=pVStart(g_dev,0,0);
+     UI("[中继] StartCAN -> %lu",(unsigned long)rs);
+     if(rs==0){
+        UI("[x] StartCAN 失败，停止");
+        if(pVClose) pVClose(g_dev,0);
+        if(pClosePort) pClosePort(g_port);
+        g_port=0; return;
+     }}
+    g_devStarted=1;
+    }
 
-    g_toHw=g_toVxl=g_drop=0; g_run=1;
-    g_thr=CreateThread(0,0,Thread,(LPVOID)(UINT_PTR)baud,0,0);
+    g_toHw=g_toVxl=g_drop=0; Sleep(200); g_run=1;
+    SetTimer(g_main,1,5,0);   /* 界面线程定时轮询：Vector API 不能跨线程 */
     UI("[中继] 已启动 —— CANape 请用【另一路】虚拟通道");
     EnableWindow(GetDlgItem(g_main,ID_START),FALSE);
     EnableWindow(GetDlgItem(g_main,ID_STOP),TRUE);
 }
 
+static unsigned g_txId=0x123;
+static void DoTx(void)
+{
+    XLevent tx; 
+    if(!g_port){ UI("[发帧] 中继还没启动"); return; }
+    ZeroMemory(&tx,sizeof(tx));
+    tx.tag=XL_TX; tx.chanIndex=(BYTE)g_vidx;
+    tx.tagData.msg.id=g_txId++;
+    tx.tagData.msg.dlc=8;
+    tx.tagData.msg.data[0]=(BYTE)(g_txId&0xFF);
+    tx.tagData.msg.data[1]=(BYTE)((g_txId>>8)&0xFF);
+    tx.tagData.msg.data[2]=0xAA; tx.tagData.msg.data[3]=0x55;
+    { XLstatus r=pXmit(g_port,g_mask,1,&tx);
+      UI("[发帧] ID=0x%03X -> %lu %s",(unsigned)g_txId-1,(unsigned long)r,r==0?"已发到虚拟通道":"失败"); }
+}
+
 static void DoStop(void)
 {
-    if(g_run){g_run=0; if(g_thr){WaitForSingleObject(g_thr,2000);CloseHandle(g_thr);g_thr=0;}}
+    if(g_run){g_run=0;} if(g_main) KillTimer(g_main,1);
     if(g_port){if(pDeact)pDeact(g_port,g_mask); if(pClosePort)pClosePort(g_port); g_port=0;}
-    if(g_hBrg&&pVClose) pVClose(g_dev,0);
-    UI("[中继] 已停止，通道已释放");
+    UI("[中继] 已停止，虚拟通道已释放（盒子保持打开，避免反复开关）");
     if(g_main){
         EnableWindow(GetDlgItem(g_main,ID_START),TRUE);
         EnableWindow(GetDlgItem(g_main,ID_STOP),FALSE);
@@ -329,6 +398,7 @@ static void DoRestore(void)
     DoStop();
     SelfDir(d,MAX_PATH); sprintf(ini,"%s\\UniVciBridge.ini",d);
     DeleteFileA(ini);
+    if(g_devOpen&&g_hBrg&&pVClose){ pVClose(g_dev,0); g_devOpen=0; UI("[恢复] 盒子已关闭"); }
     if(g_stat) SetWindowTextA(g_stat,"");
     UI("[恢复] 已停中继 / 关设备 / 释放通道 / 删 ini —— 回到初始状态");
 }
@@ -340,10 +410,15 @@ static LRESULT CALLBACK WP(HWND h,UINT m,WPARAM w,LPARAM l)
         g_main=h;
         CreateWindowA("STATIC","真实硬件",WS_CHILD|WS_VISIBLE,14,8,150,16,h,0,0,0);
         CreateWindowA("STATIC","硬件通道",WS_CHILD|WS_VISIBLE,174,8,120,16,h,0,0,0);
-        CreateWindowA("STATIC","波特率",WS_CHILD|WS_VISIBLE,304,8,100,16,h,0,0,0);
+        CreateWindowA("STATIC","波特率",WS_CHILD|WS_VISIBLE,304,8,90,16,h,0,0,0);
+        CreateWindowA("STATIC","盒子型号",WS_CHILD|WS_VISIBLE,404,8,100,16,h,0,0,0);
         g_be  =CreateWindowA("COMBOBOX","",WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST,14,26,150,200,h,(HMENU)ID_BE,0,0);
         g_hw  =CreateWindowA("COMBOBOX","",WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST,174,26,120,200,h,(HMENU)ID_HW,0,0);
-        g_baud=CreateWindowA("COMBOBOX","",WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST,304,26,100,200,h,(HMENU)ID_BAUD,0,0);
+        g_baud=CreateWindowA("COMBOBOX","",WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST,304,26,90,200,h,(HMENU)ID_BAUD,0,0);
+        g_devc=CreateWindowA("COMBOBOX","",WS_CHILD|WS_VISIBLE|CBS_DROPDOWNLIST,404,26,100,200,h,(HMENU)ID_DEV,0,0);
+        { const char*dt[]={"4 - USBCAN-II","21 - USBCAN-2E-U","20 - USBCAN-E-U","3 - USBCAN-I","34 - FD-800U","31 - FD-200U"};
+          int di; for(di=0;di<6;di++) SendMessageA(g_devc,CB_ADDSTRING,0,(LPARAM)dt[di]);
+          SendMessageA(g_devc,CB_SETCURSEL,0,0); }   /* 默认 USBCAN-II (4) */
         {int i;
          for(i=0;i<6;i++) SendMessageA(g_be,CB_ADDSTRING,0,(LPARAM)kBeTxt[i]);
          SendMessageA(g_be,CB_SETCURSEL,1,0);
@@ -366,7 +441,8 @@ static LRESULT CALLBACK WP(HWND h,UINT m,WPARAM w,LPARAM l)
         CreateWindowA("BUTTON","启动中继",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,134,104,110,30,h,(HMENU)ID_START,0,0);
         CreateWindowA("BUTTON","停止",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,254,104,70,30,h,(HMENU)ID_STOP,0,0);
         CreateWindowA("BUTTON","诊断",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,334,104,70,30,h,(HMENU)ID_DIAG,0,0);
-        CreateWindowA("BUTTON","一键恢复",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,414,104,90,30,h,(HMENU)ID_RESTORE,0,0);
+        CreateWindowA("BUTTON","发测试帧",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,414,104,90,30,h,(HMENU)ID_TX,0,0);
+        CreateWindowA("BUTTON","一键恢复",WS_CHILD|WS_VISIBLE|BS_PUSHBUTTON,512,104,90,30,h,(HMENU)ID_RESTORE,0,0);
         EnableWindow(GetDlgItem(h,ID_STOP),FALSE);
         g_stat=CreateWindowA("STATIC","",WS_CHILD|WS_VISIBLE|SS_SUNKEN,14,142,490,20,h,(HMENU)ID_STAT,0,0);
         g_log=CreateWindowA("EDIT","",WS_CHILD|WS_VISIBLE|WS_VSCROLL|ES_MULTILINE|ES_READONLY|ES_AUTOVSCROLL|WS_BORDER,
@@ -381,8 +457,10 @@ static LRESULT CALLBACK WP(HWND h,UINT m,WPARAM w,LPARAM l)
         case ID_STOP:   DoStop();   return 0;
         case ID_DIAG:   DoDiag();   return 0;
         case ID_RESTORE:DoRestore();return 0;
+        case ID_TX:     DoTx();     return 0;
         }
         return 0;
+    case WM_TIMER: if(w==1) PollOnce(); return 0;
     case WM_CLOSE: DoStop(); DestroyWindow(h); return 0;
     case WM_DESTROY: PostQuitMessage(0); return 0;
     }
@@ -399,7 +477,7 @@ int WINAPI WinMain(HINSTANCE hi,HINSTANCE hp,LPSTR cl,int sh)
     wc.lpszClassName="VxlRelayGui3";
     RegisterClassA(&wc);
     h=CreateWindowA("VxlRelayGui3","反向桥接 —— 真实盒子 -> Vector 虚拟通道",
-        WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,540,530,0,0,hi,0);
+        WS_OVERLAPPEDWINDOW,CW_USEDEFAULT,CW_USEDEFAULT,630,530,0,0,hi,0);
     if(!h) return 1;
     ShowWindow(h,sh); UpdateWindow(h);
     while(GetMessage(&msg,0,0,0)>0){TranslateMessage(&msg);DispatchMessage(&msg);}
