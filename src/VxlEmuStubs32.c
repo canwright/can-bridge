@@ -1,331 +1,324 @@
-/* 自动生成：其余导出全部转发给原厂 DLL */
+/* 自动生成：按真实参数字节数生成桩，保证 32 位栈平衡 */
 #include <windows.h>
-extern long __stdcall VxlFwd(const char *name);
 
-__declspec(dllexport) long __stdcall ethDefaultConfigCleanAllIds(void) { return VxlFwd("ethDefaultConfigCleanAllIds"); }
-__declspec(dllexport) long __stdcall ethDefaultConfigCommitChanges(void) { return VxlFwd("ethDefaultConfigCommitChanges"); }
-__declspec(dllexport) long __stdcall ethDefaultConfigReadIdData(void) { return VxlFwd("ethDefaultConfigReadIdData"); }
-__declspec(dllexport) long __stdcall ethDefaultConfigReadIdHeader(void) { return VxlFwd("ethDefaultConfigReadIdHeader"); }
-__declspec(dllexport) long __stdcall ethDefaultConfigStartModification(void) { return VxlFwd("ethDefaultConfigStartModification"); }
-__declspec(dllexport) long __stdcall ethDefaultConfigWriteId(void) { return VxlFwd("ethDefaultConfigWriteId"); }
-__declspec(dllexport) long __stdcall xlA429Receive(void) { return VxlFwd("xlA429Receive"); }
-__declspec(dllexport) long __stdcall xlA429SetChannelParams(void) { return VxlFwd("xlA429SetChannelParams"); }
-__declspec(dllexport) long __stdcall xlA429Transmit(void) { return VxlFwd("xlA429Transmit"); }
-__declspec(dllexport) long __stdcall xlAddChannelToPort(void) { return VxlFwd("xlAddChannelToPort"); }
-__declspec(dllexport) long __stdcall xlAddRemoteDevice(void) { return VxlFwd("xlAddRemoteDevice"); }
-__declspec(dllexport) long __stdcall xlAddStatusProviderToPort(void) { return VxlFwd("xlAddStatusProviderToPort"); }
-__declspec(dllexport) long __stdcall xlCanAddAcceptanceRange(void) { return VxlFwd("xlCanAddAcceptanceRange"); }
-__declspec(dllexport) long __stdcall xlCanFdSetConfiguration(void) { return VxlFwd("xlCanFdSetConfiguration"); }
-__declspec(dllexport) long __stdcall xlCanFlushTransmitQueue(void) { return VxlFwd("xlCanFlushTransmitQueue"); }
-__declspec(dllexport) long __stdcall xlCanGetEventString(void) { return VxlFwd("xlCanGetEventString"); }
-__declspec(dllexport) long __stdcall xlCanReceive(void) { return VxlFwd("xlCanReceive"); }
-__declspec(dllexport) long __stdcall xlCanRemoveAcceptanceRange(void) { return VxlFwd("xlCanRemoveAcceptanceRange"); }
-__declspec(dllexport) long __stdcall xlCanRequestChipState(void) { return VxlFwd("xlCanRequestChipState"); }
-__declspec(dllexport) long __stdcall xlCanResetAcceptance(void) { return VxlFwd("xlCanResetAcceptance"); }
-__declspec(dllexport) long __stdcall xlCanSetChannelAcceptance(void) { return VxlFwd("xlCanSetChannelAcceptance"); }
-__declspec(dllexport) long __stdcall xlCanSetChannelMode(void) { return VxlFwd("xlCanSetChannelMode"); }
-__declspec(dllexport) long __stdcall xlCanSetChannelOutput(void) { return VxlFwd("xlCanSetChannelOutput"); }
-__declspec(dllexport) long __stdcall xlCanSetChannelParams(void) { return VxlFwd("xlCanSetChannelParams"); }
-__declspec(dllexport) long __stdcall xlCanSetChannelParamsC200(void) { return VxlFwd("xlCanSetChannelParamsC200"); }
-__declspec(dllexport) long __stdcall xlCanSetChannelTransceiver(void) { return VxlFwd("xlCanSetChannelTransceiver"); }
-__declspec(dllexport) long __stdcall xlCanSetReceiveMode(void) { return VxlFwd("xlCanSetReceiveMode"); }
-__declspec(dllexport) long __stdcall xlCanStressConfigure(void) { return VxlFwd("xlCanStressConfigure"); }
-__declspec(dllexport) long __stdcall xlCanStressConfigureAnalogComponents(void) { return VxlFwd("xlCanStressConfigureAnalogComponents"); }
-__declspec(dllexport) long __stdcall xlCanStressConfigurePulse(void) { return VxlFwd("xlCanStressConfigurePulse"); }
-__declspec(dllexport) long __stdcall xlCanStressConfigureTriggerTiming(void) { return VxlFwd("xlCanStressConfigureTriggerTiming"); }
-__declspec(dllexport) long __stdcall xlCanStressDeactivateStress(void) { return VxlFwd("xlCanStressDeactivateStress"); }
-__declspec(dllexport) long __stdcall xlCanStressDeactivateTrigger(void) { return VxlFwd("xlCanStressDeactivateTrigger"); }
-__declspec(dllexport) long __stdcall xlCanStressGeneratePulse(void) { return VxlFwd("xlCanStressGeneratePulse"); }
-__declspec(dllexport) long __stdcall xlCanStressGetAnalogComponentDefinitions(void) { return VxlFwd("xlCanStressGetAnalogComponentDefinitions"); }
-__declspec(dllexport) long __stdcall xlCanStressGetAnalogComponentValues(void) { return VxlFwd("xlCanStressGetAnalogComponentValues"); }
-__declspec(dllexport) long __stdcall xlCanStressTriggerNow(void) { return VxlFwd("xlCanStressTriggerNow"); }
-__declspec(dllexport) long __stdcall xlCanTransmitEx(void) { return VxlFwd("xlCanTransmitEx"); }
-__declspec(dllexport) long __stdcall xlCheckLicense(void) { return VxlFwd("xlCheckLicense"); }
-__declspec(dllexport) long __stdcall xlCreateDriverConfig(void) { return VxlFwd("xlCreateDriverConfig"); }
-__declspec(dllexport) long __stdcall xlCreatePort(void) { return VxlFwd("xlCreatePort"); }
-__declspec(dllexport) long __stdcall xlCryptoCloseSession(void) { return VxlFwd("xlCryptoCloseSession"); }
-__declspec(dllexport) long __stdcall xlCryptoGetErrorString(void) { return VxlFwd("xlCryptoGetErrorString"); }
-__declspec(dllexport) long __stdcall xlCryptoKeyAuthorizationComplete(void) { return VxlFwd("xlCryptoKeyAuthorizationComplete"); }
-__declspec(dllexport) long __stdcall xlCryptoKeyAuthorizationStart(void) { return VxlFwd("xlCryptoKeyAuthorizationStart"); }
-__declspec(dllexport) long __stdcall xlCryptoReadDeviceInfo(void) { return VxlFwd("xlCryptoReadDeviceInfo"); }
-__declspec(dllexport) long __stdcall xlCryptoReadPublicKey(void) { return VxlFwd("xlCryptoReadPublicKey"); }
-__declspec(dllexport) long __stdcall xlCryptoReadTde(void) { return VxlFwd("xlCryptoReadTde"); }
-__declspec(dllexport) long __stdcall xlCryptoSignCounterComplete(void) { return VxlFwd("xlCryptoSignCounterComplete"); }
-__declspec(dllexport) long __stdcall xlCryptoSignCounterExpand(void) { return VxlFwd("xlCryptoSignCounterExpand"); }
-__declspec(dllexport) long __stdcall xlCryptoSignCounterStart(void) { return VxlFwd("xlCryptoSignCounterStart"); }
-__declspec(dllexport) long __stdcall xlCryptoSignRandomComplete(void) { return VxlFwd("xlCryptoSignRandomComplete"); }
-__declspec(dllexport) long __stdcall xlCryptoSignRandomExpand(void) { return VxlFwd("xlCryptoSignRandomExpand"); }
-__declspec(dllexport) long __stdcall xlCryptoSignRandomStart(void) { return VxlFwd("xlCryptoSignRandomStart"); }
-__declspec(dllexport) long __stdcall xlCryptoStartSession(void) { return VxlFwd("xlCryptoStartSession"); }
-__declspec(dllexport) long __stdcall xlDAIORequestMeasurement(void) { return VxlFwd("xlDAIORequestMeasurement"); }
-__declspec(dllexport) long __stdcall xlDAIOSetAnalogOutput(void) { return VxlFwd("xlDAIOSetAnalogOutput"); }
-__declspec(dllexport) long __stdcall xlDAIOSetAnalogParameters(void) { return VxlFwd("xlDAIOSetAnalogParameters"); }
-__declspec(dllexport) long __stdcall xlDAIOSetAnalogTrigger(void) { return VxlFwd("xlDAIOSetAnalogTrigger"); }
-__declspec(dllexport) long __stdcall xlDAIOSetDigitalOutput(void) { return VxlFwd("xlDAIOSetDigitalOutput"); }
-__declspec(dllexport) long __stdcall xlDAIOSetDigitalParameters(void) { return VxlFwd("xlDAIOSetDigitalParameters"); }
-__declspec(dllexport) long __stdcall xlDAIOSetDigitalTrigger(void) { return VxlFwd("xlDAIOSetDigitalTrigger"); }
-__declspec(dllexport) long __stdcall xlDAIOSetMeasurementFrequency(void) { return VxlFwd("xlDAIOSetMeasurementFrequency"); }
-__declspec(dllexport) long __stdcall xlDAIOSetPWMOutput(void) { return VxlFwd("xlDAIOSetPWMOutput"); }
-__declspec(dllexport) long __stdcall xlDefaultConfigGPBRead(void) { return VxlFwd("xlDefaultConfigGPBRead"); }
-__declspec(dllexport) long __stdcall xlDefaultConfigGPBWrite(void) { return VxlFwd("xlDefaultConfigGPBWrite"); }
-__declspec(dllexport) long __stdcall xlDestroyDriverConfig(void) { return VxlFwd("xlDestroyDriverConfig"); }
-__declspec(dllexport) long __stdcall xlDisableDevice(void) { return VxlFwd("xlDisableDevice"); }
-__declspec(dllexport) long __stdcall xlEnableDevice(void) { return VxlFwd("xlEnableDevice"); }
-__declspec(dllexport) long __stdcall xlEthCoreGetDefaultConfig(void) { return VxlFwd("xlEthCoreGetDefaultConfig"); }
-__declspec(dllexport) long __stdcall xlEthCoreSetDefaultConfig(void) { return VxlFwd("xlEthCoreSetDefaultConfig"); }
-__declspec(dllexport) long __stdcall xlEthDefaultConfigCompatible(void) { return VxlFwd("xlEthDefaultConfigCompatible"); }
-__declspec(dllexport) long __stdcall xlEthGetConfig(void) { return VxlFwd("xlEthGetConfig"); }
-__declspec(dllexport) long __stdcall xlEthReadPhyRegister(void) { return VxlFwd("xlEthReadPhyRegister"); }
-__declspec(dllexport) long __stdcall xlEthReceive(void) { return VxlFwd("xlEthReceive"); }
-__declspec(dllexport) long __stdcall xlEthRequestChannelStatus(void) { return VxlFwd("xlEthRequestChannelStatus"); }
-__declspec(dllexport) long __stdcall xlEthSetBypass(void) { return VxlFwd("xlEthSetBypass"); }
-__declspec(dllexport) long __stdcall xlEthSetConfig(void) { return VxlFwd("xlEthSetConfig"); }
-__declspec(dllexport) long __stdcall xlEthStartAutoConfig(void) { return VxlFwd("xlEthStartAutoConfig"); }
-__declspec(dllexport) long __stdcall xlEthTransmit(void) { return VxlFwd("xlEthTransmit"); }
-__declspec(dllexport) long __stdcall xlEthTwinkleStatusLed(void) { return VxlFwd("xlEthTwinkleStatusLed"); }
-__declspec(dllexport) long __stdcall xlEthTwinkleStatusLedEx(void) { return VxlFwd("xlEthTwinkleStatusLedEx"); }
-__declspec(dllexport) long __stdcall xlEthWritePhyRegister(void) { return VxlFwd("xlEthWritePhyRegister"); }
-__declspec(dllexport) long __stdcall xlFinalizePort(void) { return VxlFwd("xlFinalizePort"); }
-__declspec(dllexport) long __stdcall xlFrActivateGateway(void) { return VxlFwd("xlFrActivateGateway"); }
-__declspec(dllexport) long __stdcall xlFrActivateSpy(void) { return VxlFwd("xlFrActivateSpy"); }
-__declspec(dllexport) long __stdcall xlFrGetChannelConfiguration(void) { return VxlFwd("xlFrGetChannelConfiguration"); }
-__declspec(dllexport) long __stdcall xlFrInitStartupAndSync(void) { return VxlFwd("xlFrInitStartupAndSync"); }
-__declspec(dllexport) long __stdcall xlFrReceive(void) { return VxlFwd("xlFrReceive"); }
-__declspec(dllexport) long __stdcall xlFrSendSymbolWindow(void) { return VxlFwd("xlFrSendSymbolWindow"); }
-__declspec(dllexport) long __stdcall xlFrSetAcceptanceFilter(void) { return VxlFwd("xlFrSetAcceptanceFilter"); }
-__declspec(dllexport) long __stdcall xlFrSetConfiguration(void) { return VxlFwd("xlFrSetConfiguration"); }
-__declspec(dllexport) long __stdcall xlFrSetMode(void) { return VxlFwd("xlFrSetMode"); }
-__declspec(dllexport) long __stdcall xlFrSetTransceiverMode(void) { return VxlFwd("xlFrSetTransceiverMode"); }
-__declspec(dllexport) long __stdcall xlFrSetupSymbolWindow(void) { return VxlFwd("xlFrSetupSymbolWindow"); }
-__declspec(dllexport) long __stdcall xlFrTransmit(void) { return VxlFwd("xlFrTransmit"); }
-__declspec(dllexport) long __stdcall xlGNSSGetBatteryState(void) { return VxlFwd("xlGNSSGetBatteryState"); }
-__declspec(dllexport) long __stdcall xlGNSSGetNavCfg(void) { return VxlFwd("xlGNSSGetNavCfg"); }
-__declspec(dllexport) long __stdcall xlGNSSGetNmeaCfg(void) { return VxlFwd("xlGNSSGetNmeaCfg"); }
-__declspec(dllexport) long __stdcall xlGNSSGetRcvCfg(void) { return VxlFwd("xlGNSSGetRcvCfg"); }
-__declspec(dllexport) long __stdcall xlGNSSReceive(void) { return VxlFwd("xlGNSSReceive"); }
-__declspec(dllexport) long __stdcall xlGNSSSetNavCfg(void) { return VxlFwd("xlGNSSSetNavCfg"); }
-__declspec(dllexport) long __stdcall xlGNSSSetNmeaCfg(void) { return VxlFwd("xlGNSSSetNmeaCfg"); }
-__declspec(dllexport) long __stdcall xlGNSSSetRcvCfg(void) { return VxlFwd("xlGNSSSetRcvCfg"); }
-__declspec(dllexport) long __stdcall xlGenerateSyncPulse(void) { return VxlFwd("xlGenerateSyncPulse"); }
-__declspec(dllexport) long __stdcall xlGetApiLimitations(void) { return VxlFwd("xlGetApiLimitations"); }
-__declspec(dllexport) long __stdcall xlGetApplConfig(void) { return VxlFwd("xlGetApplConfig"); }
-__declspec(dllexport) long __stdcall xlGetApplConfigList(void) { return VxlFwd("xlGetApplConfigList"); }
-__declspec(dllexport) long __stdcall xlGetChannelVersionInfo(void) { return VxlFwd("xlGetChannelVersionInfo"); }
-__declspec(dllexport) long __stdcall xlGetDriverConfig2(void) { return VxlFwd("xlGetDriverConfig2"); }
-__declspec(dllexport) long __stdcall xlGetDriverConfigEx(void) { return VxlFwd("xlGetDriverConfigEx"); }
-__declspec(dllexport) long __stdcall xlGetEttData(void) { return VxlFwd("xlGetEttData"); }
-__declspec(dllexport) long __stdcall xlGetEventString(void) { return VxlFwd("xlGetEventString"); }
-__declspec(dllexport) long __stdcall xlGetHwChannelDescription(void) { return VxlFwd("xlGetHwChannelDescription"); }
-__declspec(dllexport) long __stdcall xlGetHwSegmentDescription(void) { return VxlFwd("xlGetHwSegmentDescription"); }
-__declspec(dllexport) long __stdcall xlGetKeymanBoxes(void) { return VxlFwd("xlGetKeymanBoxes"); }
-__declspec(dllexport) long __stdcall xlGetKeymanInfo(void) { return VxlFwd("xlGetKeymanInfo"); }
-__declspec(dllexport) long __stdcall xlGetLicenseInfo(void) { return VxlFwd("xlGetLicenseInfo"); }
-__declspec(dllexport) long __stdcall xlGetLicenseInfoEx(void) { return VxlFwd("xlGetLicenseInfoEx"); }
-__declspec(dllexport) long __stdcall xlGetQueueNotifyMode(void) { return VxlFwd("xlGetQueueNotifyMode"); }
-__declspec(dllexport) long __stdcall xlGetReceiveQueueLevel(void) { return VxlFwd("xlGetReceiveQueueLevel"); }
-__declspec(dllexport) long __stdcall xlGetRemoteDeviceCapabilities(void) { return VxlFwd("xlGetRemoteDeviceCapabilities"); }
-__declspec(dllexport) long __stdcall xlGetRemoteDeviceInfo(void) { return VxlFwd("xlGetRemoteDeviceInfo"); }
-__declspec(dllexport) long __stdcall xlGetRemoteDriverConfig(void) { return VxlFwd("xlGetRemoteDriverConfig"); }
-__declspec(dllexport) long __stdcall xlGetRemoteHwInfo(void) { return VxlFwd("xlGetRemoteHwInfo"); }
-__declspec(dllexport) long __stdcall xlGetRemoteObjectIdentity(void) { return VxlFwd("xlGetRemoteObjectIdentity"); }
-__declspec(dllexport) long __stdcall xlGetToolAccessApplConfig(void) { return VxlFwd("xlGetToolAccessApplConfig"); }
-__declspec(dllexport) long __stdcall xlIoConfigurePorts(void) { return VxlFwd("xlIoConfigurePorts"); }
-__declspec(dllexport) long __stdcall xlIoResetCom(void) { return VxlFwd("xlIoResetCom"); }
-__declspec(dllexport) long __stdcall xlIoSetAckMode(void) { return VxlFwd("xlIoSetAckMode"); }
-__declspec(dllexport) long __stdcall xlIoSetActivationLine(void) { return VxlFwd("xlIoSetActivationLine"); }
-__declspec(dllexport) long __stdcall xlIoSetAnalogOutput(void) { return VxlFwd("xlIoSetAnalogOutput"); }
-__declspec(dllexport) long __stdcall xlIoSetCaptureTimeout(void) { return VxlFwd("xlIoSetCaptureTimeout"); }
-__declspec(dllexport) long __stdcall xlIoSetDigInThreshold(void) { return VxlFwd("xlIoSetDigInThreshold"); }
-__declspec(dllexport) long __stdcall xlIoSetDigOutLevel(void) { return VxlFwd("xlIoSetDigOutLevel"); }
-__declspec(dllexport) long __stdcall xlIoSetDigitalOutput(void) { return VxlFwd("xlIoSetDigitalOutput"); }
-__declspec(dllexport) long __stdcall xlIoSetDigitalOutputWithHold(void) { return VxlFwd("xlIoSetDigitalOutputWithHold"); }
-__declspec(dllexport) long __stdcall xlIoSetPwmOutput(void) { return VxlFwd("xlIoSetPwmOutput"); }
-__declspec(dllexport) long __stdcall xlIoSetTriggerMode(void) { return VxlFwd("xlIoSetTriggerMode"); }
-__declspec(dllexport) long __stdcall xlIoStartSampling(void) { return VxlFwd("xlIoStartSampling"); }
-__declspec(dllexport) long __stdcall xlKlineFastInitTester(void) { return VxlFwd("xlKlineFastInitTester"); }
-__declspec(dllexport) long __stdcall xlKlineInit5BdEcu(void) { return VxlFwd("xlKlineInit5BdEcu"); }
-__declspec(dllexport) long __stdcall xlKlineInit5BdTester(void) { return VxlFwd("xlKlineInit5BdTester"); }
-__declspec(dllexport) long __stdcall xlKlineSetBaudrate(void) { return VxlFwd("xlKlineSetBaudrate"); }
-__declspec(dllexport) long __stdcall xlKlineSetCommunicationTimingEcu(void) { return VxlFwd("xlKlineSetCommunicationTimingEcu"); }
-__declspec(dllexport) long __stdcall xlKlineSetCommunicationTimingTester(void) { return VxlFwd("xlKlineSetCommunicationTimingTester"); }
-__declspec(dllexport) long __stdcall xlKlineSetUartParams(void) { return VxlFwd("xlKlineSetUartParams"); }
-__declspec(dllexport) long __stdcall xlKlineSwitchHighspeedMode(void) { return VxlFwd("xlKlineSwitchHighspeedMode"); }
-__declspec(dllexport) long __stdcall xlKlineSwitchTesterResistor(void) { return VxlFwd("xlKlineSwitchTesterResistor"); }
-__declspec(dllexport) long __stdcall xlKlineTransmit(void) { return VxlFwd("xlKlineTransmit"); }
-__declspec(dllexport) long __stdcall xlLinSendRequest(void) { return VxlFwd("xlLinSendRequest"); }
-__declspec(dllexport) long __stdcall xlLinSetChannelParams(void) { return VxlFwd("xlLinSetChannelParams"); }
-__declspec(dllexport) long __stdcall xlLinSetChecksum(void) { return VxlFwd("xlLinSetChecksum"); }
-__declspec(dllexport) long __stdcall xlLinSetDLC(void) { return VxlFwd("xlLinSetDLC"); }
-__declspec(dllexport) long __stdcall xlLinSetSlave(void) { return VxlFwd("xlLinSetSlave"); }
-__declspec(dllexport) long __stdcall xlLinSetSleepMode(void) { return VxlFwd("xlLinSetSleepMode"); }
-__declspec(dllexport) long __stdcall xlLinSwitchSlave(void) { return VxlFwd("xlLinSwitchSlave"); }
-__declspec(dllexport) long __stdcall xlLinWakeUp(void) { return VxlFwd("xlLinWakeUp"); }
-__declspec(dllexport) long __stdcall xlLogGetMountPoint(void) { return VxlFwd("xlLogGetMountPoint"); }
-__declspec(dllexport) long __stdcall xlMost150AsyncConfigureBusload(void) { return VxlFwd("xlMost150AsyncConfigureBusload"); }
-__declspec(dllexport) long __stdcall xlMost150AsyncGenerateBusload(void) { return VxlFwd("xlMost150AsyncGenerateBusload"); }
-__declspec(dllexport) long __stdcall xlMost150AsyncTransmit(void) { return VxlFwd("xlMost150AsyncTransmit"); }
-__declspec(dllexport) long __stdcall xlMost150ConfigureRxBuffer(void) { return VxlFwd("xlMost150ConfigureRxBuffer"); }
-__declspec(dllexport) long __stdcall xlMost150CtrlBusStatistic(void) { return VxlFwd("xlMost150CtrlBusStatistic"); }
-__declspec(dllexport) long __stdcall xlMost150CtrlConfigureBusload(void) { return VxlFwd("xlMost150CtrlConfigureBusload"); }
-__declspec(dllexport) long __stdcall xlMost150CtrlGenerateBusload(void) { return VxlFwd("xlMost150CtrlGenerateBusload"); }
-__declspec(dllexport) long __stdcall xlMost150CtrlSyncAudio(void) { return VxlFwd("xlMost150CtrlSyncAudio"); }
-__declspec(dllexport) long __stdcall xlMost150CtrlTransmit(void) { return VxlFwd("xlMost150CtrlTransmit"); }
-__declspec(dllexport) long __stdcall xlMost150EclConfigureSeq(void) { return VxlFwd("xlMost150EclConfigureSeq"); }
-__declspec(dllexport) long __stdcall xlMost150EclGenerateSeq(void) { return VxlFwd("xlMost150EclGenerateSeq"); }
-__declspec(dllexport) long __stdcall xlMost150EthernetTransmit(void) { return VxlFwd("xlMost150EthernetTransmit"); }
-__declspec(dllexport) long __stdcall xlMost150FilterEvent(void) { return VxlFwd("xlMost150FilterEvent"); }
-__declspec(dllexport) long __stdcall xlMost150GenerateBypassStress(void) { return VxlFwd("xlMost150GenerateBypassStress"); }
-__declspec(dllexport) long __stdcall xlMost150GenerateLightError(void) { return VxlFwd("xlMost150GenerateLightError"); }
-__declspec(dllexport) long __stdcall xlMost150GenerateLockError(void) { return VxlFwd("xlMost150GenerateLockError"); }
-__declspec(dllexport) long __stdcall xlMost150GetDeviceMode(void) { return VxlFwd("xlMost150GetDeviceMode"); }
-__declspec(dllexport) long __stdcall xlMost150GetDeviceState(void) { return VxlFwd("xlMost150GetDeviceState"); }
-__declspec(dllexport) long __stdcall xlMost150GetECLInfo(void) { return VxlFwd("xlMost150GetECLInfo"); }
-__declspec(dllexport) long __stdcall xlMost150GetFrequency(void) { return VxlFwd("xlMost150GetFrequency"); }
-__declspec(dllexport) long __stdcall xlMost150GetMPR(void) { return VxlFwd("xlMost150GetMPR"); }
-__declspec(dllexport) long __stdcall xlMost150GetNPR(void) { return VxlFwd("xlMost150GetNPR"); }
-__declspec(dllexport) long __stdcall xlMost150GetRxLightLockStatus(void) { return VxlFwd("xlMost150GetRxLightLockStatus"); }
-__declspec(dllexport) long __stdcall xlMost150GetSPDIFMode(void) { return VxlFwd("xlMost150GetSPDIFMode"); }
-__declspec(dllexport) long __stdcall xlMost150GetSSOResult(void) { return VxlFwd("xlMost150GetSSOResult"); }
-__declspec(dllexport) long __stdcall xlMost150GetShutdownFlag(void) { return VxlFwd("xlMost150GetShutdownFlag"); }
-__declspec(dllexport) long __stdcall xlMost150GetSpecialNodeInfo(void) { return VxlFwd("xlMost150GetSpecialNodeInfo"); }
-__declspec(dllexport) long __stdcall xlMost150GetSystemLockFlag(void) { return VxlFwd("xlMost150GetSystemLockFlag"); }
-__declspec(dllexport) long __stdcall xlMost150GetTxLight(void) { return VxlFwd("xlMost150GetTxLight"); }
-__declspec(dllexport) long __stdcall xlMost150Receive(void) { return VxlFwd("xlMost150Receive"); }
-__declspec(dllexport) long __stdcall xlMost150SetDeviceMode(void) { return VxlFwd("xlMost150SetDeviceMode"); }
-__declspec(dllexport) long __stdcall xlMost150SetECLGlitchFilter(void) { return VxlFwd("xlMost150SetECLGlitchFilter"); }
-__declspec(dllexport) long __stdcall xlMost150SetECLLine(void) { return VxlFwd("xlMost150SetECLLine"); }
-__declspec(dllexport) long __stdcall xlMost150SetECLTermination(void) { return VxlFwd("xlMost150SetECLTermination"); }
-__declspec(dllexport) long __stdcall xlMost150SetFrequency(void) { return VxlFwd("xlMost150SetFrequency"); }
-__declspec(dllexport) long __stdcall xlMost150SetSPDIFMode(void) { return VxlFwd("xlMost150SetSPDIFMode"); }
-__declspec(dllexport) long __stdcall xlMost150SetSSOResult(void) { return VxlFwd("xlMost150SetSSOResult"); }
-__declspec(dllexport) long __stdcall xlMost150SetSpecialNodeInfo(void) { return VxlFwd("xlMost150SetSpecialNodeInfo"); }
-__declspec(dllexport) long __stdcall xlMost150SetTxLight(void) { return VxlFwd("xlMost150SetTxLight"); }
-__declspec(dllexport) long __stdcall xlMost150SetTxLightPower(void) { return VxlFwd("xlMost150SetTxLightPower"); }
-__declspec(dllexport) long __stdcall xlMost150Shutdown(void) { return VxlFwd("xlMost150Shutdown"); }
-__declspec(dllexport) long __stdcall xlMost150Startup(void) { return VxlFwd("xlMost150Startup"); }
-__declspec(dllexport) long __stdcall xlMost150StreamClearTxFifo(void) { return VxlFwd("xlMost150StreamClearTxFifo"); }
-__declspec(dllexport) long __stdcall xlMost150StreamClose(void) { return VxlFwd("xlMost150StreamClose"); }
-__declspec(dllexport) long __stdcall xlMost150StreamGetInfo(void) { return VxlFwd("xlMost150StreamGetInfo"); }
-__declspec(dllexport) long __stdcall xlMost150StreamInitRxFifo(void) { return VxlFwd("xlMost150StreamInitRxFifo"); }
-__declspec(dllexport) long __stdcall xlMost150StreamOpen(void) { return VxlFwd("xlMost150StreamOpen"); }
-__declspec(dllexport) long __stdcall xlMost150StreamReceiveData(void) { return VxlFwd("xlMost150StreamReceiveData"); }
-__declspec(dllexport) long __stdcall xlMost150StreamStart(void) { return VxlFwd("xlMost150StreamStart"); }
-__declspec(dllexport) long __stdcall xlMost150StreamStop(void) { return VxlFwd("xlMost150StreamStop"); }
-__declspec(dllexport) long __stdcall xlMost150StreamTransmitData(void) { return VxlFwd("xlMost150StreamTransmitData"); }
-__declspec(dllexport) long __stdcall xlMost150SwitchEventSources(void) { return VxlFwd("xlMost150SwitchEventSources"); }
-__declspec(dllexport) long __stdcall xlMost150SwitchLed(void) { return VxlFwd("xlMost150SwitchLed"); }
-__declspec(dllexport) long __stdcall xlMost150SyncGetAllocTable(void) { return VxlFwd("xlMost150SyncGetAllocTable"); }
-__declspec(dllexport) long __stdcall xlMost150SyncGetMute(void) { return VxlFwd("xlMost150SyncGetMute"); }
-__declspec(dllexport) long __stdcall xlMost150SyncGetVolume(void) { return VxlFwd("xlMost150SyncGetVolume"); }
-__declspec(dllexport) long __stdcall xlMost150SyncSetMute(void) { return VxlFwd("xlMost150SyncSetMute"); }
-__declspec(dllexport) long __stdcall xlMost150SyncSetVolume(void) { return VxlFwd("xlMost150SyncSetVolume"); }
-__declspec(dllexport) long __stdcall xlMost150TwinklePowerLed(void) { return VxlFwd("xlMost150TwinklePowerLed"); }
-__declspec(dllexport) long __stdcall xlMostAsyncConfigureBusload(void) { return VxlFwd("xlMostAsyncConfigureBusload"); }
-__declspec(dllexport) long __stdcall xlMostAsyncGenerateBusload(void) { return VxlFwd("xlMostAsyncGenerateBusload"); }
-__declspec(dllexport) long __stdcall xlMostAsyncTransmit(void) { return VxlFwd("xlMostAsyncTransmit"); }
-__declspec(dllexport) long __stdcall xlMostCtrlConfigureBusload(void) { return VxlFwd("xlMostCtrlConfigureBusload"); }
-__declspec(dllexport) long __stdcall xlMostCtrlGenerateBusload(void) { return VxlFwd("xlMostCtrlGenerateBusload"); }
-__declspec(dllexport) long __stdcall xlMostCtrlRxBuffer(void) { return VxlFwd("xlMostCtrlRxBuffer"); }
-__declspec(dllexport) long __stdcall xlMostCtrlSyncAudio(void) { return VxlFwd("xlMostCtrlSyncAudio"); }
-__declspec(dllexport) long __stdcall xlMostCtrlSyncAudioEx(void) { return VxlFwd("xlMostCtrlSyncAudioEx"); }
-__declspec(dllexport) long __stdcall xlMostCtrlTransmit(void) { return VxlFwd("xlMostCtrlTransmit"); }
-__declspec(dllexport) long __stdcall xlMostGenerateLightError(void) { return VxlFwd("xlMostGenerateLightError"); }
-__declspec(dllexport) long __stdcall xlMostGenerateLockError(void) { return VxlFwd("xlMostGenerateLockError"); }
-__declspec(dllexport) long __stdcall xlMostGetAllBypass(void) { return VxlFwd("xlMostGetAllBypass"); }
-__declspec(dllexport) long __stdcall xlMostGetFrequency(void) { return VxlFwd("xlMostGetFrequency"); }
-__declspec(dllexport) long __stdcall xlMostGetLockStatus(void) { return VxlFwd("xlMostGetLockStatus"); }
-__declspec(dllexport) long __stdcall xlMostGetRxLight(void) { return VxlFwd("xlMostGetRxLight"); }
-__declspec(dllexport) long __stdcall xlMostGetTimingMode(void) { return VxlFwd("xlMostGetTimingMode"); }
-__declspec(dllexport) long __stdcall xlMostGetTxLight(void) { return VxlFwd("xlMostGetTxLight"); }
-__declspec(dllexport) long __stdcall xlMostReadRegister(void) { return VxlFwd("xlMostReadRegister"); }
-__declspec(dllexport) long __stdcall xlMostReceive(void) { return VxlFwd("xlMostReceive"); }
-__declspec(dllexport) long __stdcall xlMostSetAllBypass(void) { return VxlFwd("xlMostSetAllBypass"); }
-__declspec(dllexport) long __stdcall xlMostSetFrequency(void) { return VxlFwd("xlMostSetFrequency"); }
-__declspec(dllexport) long __stdcall xlMostSetLightPower(void) { return VxlFwd("xlMostSetLightPower"); }
-__declspec(dllexport) long __stdcall xlMostSetTimingMode(void) { return VxlFwd("xlMostSetTimingMode"); }
-__declspec(dllexport) long __stdcall xlMostSetTxLight(void) { return VxlFwd("xlMostSetTxLight"); }
-__declspec(dllexport) long __stdcall xlMostStreamBufferAllocate(void) { return VxlFwd("xlMostStreamBufferAllocate"); }
-__declspec(dllexport) long __stdcall xlMostStreamBufferClearAll(void) { return VxlFwd("xlMostStreamBufferClearAll"); }
-__declspec(dllexport) long __stdcall xlMostStreamBufferDeallocateAll(void) { return VxlFwd("xlMostStreamBufferDeallocateAll"); }
-__declspec(dllexport) long __stdcall xlMostStreamBufferSetNext(void) { return VxlFwd("xlMostStreamBufferSetNext"); }
-__declspec(dllexport) long __stdcall xlMostStreamClose(void) { return VxlFwd("xlMostStreamClose"); }
-__declspec(dllexport) long __stdcall xlMostStreamGetInfo(void) { return VxlFwd("xlMostStreamGetInfo"); }
-__declspec(dllexport) long __stdcall xlMostStreamOpen(void) { return VxlFwd("xlMostStreamOpen"); }
-__declspec(dllexport) long __stdcall xlMostStreamStart(void) { return VxlFwd("xlMostStreamStart"); }
-__declspec(dllexport) long __stdcall xlMostStreamStop(void) { return VxlFwd("xlMostStreamStop"); }
-__declspec(dllexport) long __stdcall xlMostSwitchEventSources(void) { return VxlFwd("xlMostSwitchEventSources"); }
-__declspec(dllexport) long __stdcall xlMostSyncGetAllocTable(void) { return VxlFwd("xlMostSyncGetAllocTable"); }
-__declspec(dllexport) long __stdcall xlMostSyncGetMuteStatus(void) { return VxlFwd("xlMostSyncGetMuteStatus"); }
-__declspec(dllexport) long __stdcall xlMostSyncGetVolumeStatus(void) { return VxlFwd("xlMostSyncGetVolumeStatus"); }
-__declspec(dllexport) long __stdcall xlMostSyncMute(void) { return VxlFwd("xlMostSyncMute"); }
-__declspec(dllexport) long __stdcall xlMostSyncVolume(void) { return VxlFwd("xlMostSyncVolume"); }
-__declspec(dllexport) long __stdcall xlMostTwinklePowerLed(void) { return VxlFwd("xlMostTwinklePowerLed"); }
-__declspec(dllexport) long __stdcall xlMostWriteRegister(void) { return VxlFwd("xlMostWriteRegister"); }
-__declspec(dllexport) long __stdcall xlMostWriteRegisterBit(void) { return VxlFwd("xlMostWriteRegisterBit"); }
-__declspec(dllexport) long __stdcall xlNetActivateNetwork(void) { return VxlFwd("xlNetActivateNetwork"); }
-__declspec(dllexport) long __stdcall xlNetAddVirtualPort(void) { return VxlFwd("xlNetAddVirtualPort"); }
-__declspec(dllexport) long __stdcall xlNetCloseNetwork(void) { return VxlFwd("xlNetCloseNetwork"); }
-__declspec(dllexport) long __stdcall xlNetConnectMeasurementPoint(void) { return VxlFwd("xlNetConnectMeasurementPoint"); }
-__declspec(dllexport) long __stdcall xlNetDeactivateNetwork(void) { return VxlFwd("xlNetDeactivateNetwork"); }
-__declspec(dllexport) long __stdcall xlNetEthOpenNetwork(void) { return VxlFwd("xlNetEthOpenNetwork"); }
-__declspec(dllexport) long __stdcall xlNetEthReceive(void) { return VxlFwd("xlNetEthReceive"); }
-__declspec(dllexport) long __stdcall xlNetEthRequestChannelStatus(void) { return VxlFwd("xlNetEthRequestChannelStatus"); }
-__declspec(dllexport) long __stdcall xlNetEthSend(void) { return VxlFwd("xlNetEthSend"); }
-__declspec(dllexport) long __stdcall xlNetFlushReceiveQueue(void) { return VxlFwd("xlNetFlushReceiveQueue"); }
-__declspec(dllexport) long __stdcall xlNetOpenVirtualPort(void) { return VxlFwd("xlNetOpenVirtualPort"); }
-__declspec(dllexport) long __stdcall xlNetReleaseMACAddress(void) { return VxlFwd("xlNetReleaseMACAddress"); }
-__declspec(dllexport) long __stdcall xlNetRequestMACAddress(void) { return VxlFwd("xlNetRequestMACAddress"); }
-__declspec(dllexport) long __stdcall xlNetSetNotification(void) { return VxlFwd("xlNetSetNotification"); }
-__declspec(dllexport) long __stdcall xlOemContact(void) { return VxlFwd("xlOemContact"); }
-__declspec(dllexport) long __stdcall xlPopupHwConfig(void) { return VxlFwd("xlPopupHwConfig"); }
-__declspec(dllexport) long __stdcall xlPopupLogHwConfig(void) { return VxlFwd("xlPopupLogHwConfig"); }
-__declspec(dllexport) long __stdcall xlQueryETTs(void) { return VxlFwd("xlQueryETTs"); }
-__declspec(dllexport) long __stdcall xlReadCmActLicenseData(void) { return VxlFwd("xlReadCmActLicenseData"); }
-__declspec(dllexport) long __stdcall xlReadDebugFlagsEx(void) { return VxlFwd("xlReadDebugFlagsEx"); }
-__declspec(dllexport) long __stdcall xlRegisterRemoteDevice(void) { return VxlFwd("xlRegisterRemoteDevice"); }
-__declspec(dllexport) long __stdcall xlReleaseRemoteDeviceInfo(void) { return VxlFwd("xlReleaseRemoteDeviceInfo"); }
-__declspec(dllexport) long __stdcall xlRemoteConfigureHostIf(void) { return VxlFwd("xlRemoteConfigureHostIf"); }
-__declspec(dllexport) long __stdcall xlRemoteGetApplConfigAutoAdjustment(void) { return VxlFwd("xlRemoteGetApplConfigAutoAdjustment"); }
-__declspec(dllexport) long __stdcall xlRemoveRemoteDevice(void) { return VxlFwd("xlRemoveRemoteDevice"); }
-__declspec(dllexport) long __stdcall xlRtcGetTimeDate(void) { return VxlFwd("xlRtcGetTimeDate"); }
-__declspec(dllexport) long __stdcall xlRtcSetTimeDate(void) { return VxlFwd("xlRtcSetTimeDate"); }
-__declspec(dllexport) long __stdcall xlSentFlushTxQueue(void) { return VxlFwd("xlSentFlushTxQueue"); }
-__declspec(dllexport) long __stdcall xlSentReceive(void) { return VxlFwd("xlSentReceive"); }
-__declspec(dllexport) long __stdcall xlSentSetConfig(void) { return VxlFwd("xlSentSetConfig"); }
-__declspec(dllexport) long __stdcall xlSentSetMode(void) { return VxlFwd("xlSentSetMode"); }
-__declspec(dllexport) long __stdcall xlSentSetSupplyVoltage(void) { return VxlFwd("xlSentSetSupplyVoltage"); }
-__declspec(dllexport) long __stdcall xlSentTransmit(void) { return VxlFwd("xlSentTransmit"); }
-__declspec(dllexport) long __stdcall xlSetApplConfigCount(void) { return VxlFwd("xlSetApplConfigCount"); }
-__declspec(dllexport) long __stdcall xlSetApplicationInfo(void) { return VxlFwd("xlSetApplicationInfo"); }
-__declspec(dllexport) long __stdcall xlSetApplicationTimeSync(void) { return VxlFwd("xlSetApplicationTimeSync"); }
-__declspec(dllexport) long __stdcall xlSetDefaultBaudrateEx(void) { return VxlFwd("xlSetDefaultBaudrateEx"); }
-__declspec(dllexport) long __stdcall xlSetDeviceRegionCode(void) { return VxlFwd("xlSetDeviceRegionCode"); }
-__declspec(dllexport) long __stdcall xlSetGlobalTimeSync(void) { return VxlFwd("xlSetGlobalTimeSync"); }
-__declspec(dllexport) long __stdcall xlSetHwChannelDescription(void) { return VxlFwd("xlSetHwChannelDescription"); }
-__declspec(dllexport) long __stdcall xlSetHwSegmentDescription(void) { return VxlFwd("xlSetHwSegmentDescription"); }
-__declspec(dllexport) long __stdcall xlSetNotificationHandle(void) { return VxlFwd("xlSetNotificationHandle"); }
-__declspec(dllexport) long __stdcall xlSetTimerBasedNotify(void) { return VxlFwd("xlSetTimerBasedNotify"); }
-__declspec(dllexport) long __stdcall xlSetTimerRate(void) { return VxlFwd("xlSetTimerRate"); }
-__declspec(dllexport) long __stdcall xlSetTimerRateAndChannel(void) { return VxlFwd("xlSetTimerRateAndChannel"); }
-__declspec(dllexport) long __stdcall xlSetToolAccessApplConfig(void) { return VxlFwd("xlSetToolAccessApplConfig"); }
-__declspec(dllexport) long __stdcall xlSetToolAccessApplConfigCount(void) { return VxlFwd("xlSetToolAccessApplConfigCount"); }
-__declspec(dllexport) long __stdcall xlStatusReceive(void) { return VxlFwd("xlStatusReceive"); }
-__declspec(dllexport) long __stdcall xlTsCreateClock(void) { return VxlFwd("xlTsCreateClock"); }
-__declspec(dllexport) long __stdcall xlTsDestroyClock(void) { return VxlFwd("xlTsDestroyClock"); }
-__declspec(dllexport) long __stdcall xlTsGetClkCfgStatString(void) { return VxlFwd("xlTsGetClkCfgStatString"); }
-__declspec(dllexport) long __stdcall xlTsGetClockIdString(void) { return VxlFwd("xlTsGetClockIdString"); }
-__declspec(dllexport) long __stdcall xlTsGetCurrentTime(void) { return VxlFwd("xlTsGetCurrentTime"); }
-__declspec(dllexport) long __stdcall xlTsGetDomainTime(void) { return VxlFwd("xlTsGetDomainTime"); }
-__declspec(dllexport) long __stdcall xlTsGetProtocolString(void) { return VxlFwd("xlTsGetProtocolString"); }
-__declspec(dllexport) long __stdcall xlTsGetTimeScaleString(void) { return VxlFwd("xlTsGetTimeScaleString"); }
-__declspec(dllexport) long __stdcall xlTsSetHwSyncClockConfiguration(void) { return VxlFwd("xlTsSetHwSyncClockConfiguration"); }
-__declspec(dllexport) long __stdcall xlUpdateDebugFlags(void) { return VxlFwd("xlUpdateDebugFlags"); }
-__declspec(dllexport) long __stdcall xlUpdateDebugFlagsEx(void) { return VxlFwd("xlUpdateDebugFlagsEx"); }
-__declspec(dllexport) long __stdcall xlUpdateRemoteDeviceInfo(void) { return VxlFwd("xlUpdateRemoteDeviceInfo"); }
-__declspec(dllexport) long __stdcall xlW11pGetConfig(void) { return VxlFwd("xlW11pGetConfig"); }
-__declspec(dllexport) long __stdcall xlW11pReceive(void) { return VxlFwd("xlW11pReceive"); }
-__declspec(dllexport) long __stdcall xlW11pRequestTemp(void) { return VxlFwd("xlW11pRequestTemp"); }
-__declspec(dllexport) long __stdcall xlW11pSetConfig(void) { return VxlFwd("xlW11pSetConfig"); }
-__declspec(dllexport) long __stdcall xlW11pTransmit(void) { return VxlFwd("xlW11pTransmit"); }
-__declspec(dllexport) long __stdcall xlW11pUnlockTransmission(void) { return VxlFwd("xlW11pUnlockTransmission"); }
-__declspec(dllexport) long __stdcall xlWriteCmActLicenseData(void) { return VxlFwd("xlWriteCmActLicenseData"); }
+__declspec(dllexport) long __stdcall XL_xlA429Receive_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlA429SetChannelParams_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlA429Transmit_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlAddChannelToPort_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlAddRemoteDevice_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlAddStatusProviderToPort_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanAddAcceptanceRange_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanFdSetConfiguration_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanFlushTransmitQueue_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanGetEventString_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanReceive_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanRemoveAcceptanceRange_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanRequestChipState_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanResetAcceptance_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanSetChannelAcceptance_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanSetChannelMode_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanSetChannelOutput_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanSetChannelParams_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanSetChannelParamsC200_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanSetChannelTransceiver_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanSetReceiveMode_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanStressConfigure_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanStressConfigureAnalogComponents_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanStressConfigurePulse_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanStressConfigureTriggerTiming_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanStressDeactivateStress_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanStressDeactivateTrigger_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanStressGeneratePulse_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanStressGetAnalogComponentDefinitions_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanStressGetAnalogComponentValues_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanStressTriggerNow_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCanTransmitEx_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCheckLicense_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCreateDriverConfig_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCreatePort_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoCloseSession_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoGetErrorString_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoKeyAuthorizationComplete_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoKeyAuthorizationStart_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoReadDeviceInfo_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoReadPublicKey_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoReadTde_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoSignCounterComplete_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoSignCounterExpand_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoSignCounterStart_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoSignRandomComplete_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoSignRandomExpand_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoSignRandomStart_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlCryptoStartSession_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDAIORequestMeasurement_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDAIOSetAnalogOutput_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDAIOSetAnalogParameters_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDAIOSetAnalogTrigger_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDAIOSetDigitalOutput_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDAIOSetDigitalParameters_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDAIOSetDigitalTrigger_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDAIOSetMeasurementFrequency_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDAIOSetPWMOutput_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDefaultConfigGPBRead_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDefaultConfigGPBWrite_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDestroyDriverConfig_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlDisableDevice_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEnableDevice_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthCoreGetDefaultConfig_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthCoreSetDefaultConfig_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthDefaultConfigCompatible_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthGetConfig_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthReadPhyRegister_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthReceive_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthRequestChannelStatus_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthSetBypass_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthSetConfig_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthStartAutoConfig_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthTransmit_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthTwinkleStatusLed_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthTwinkleStatusLedEx_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlEthWritePhyRegister_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFinalizePort_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrActivateGateway_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrActivateSpy_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrGetChannelConfiguration_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrInitStartupAndSync_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrReceive_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrSendSymbolWindow_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrSetAcceptanceFilter_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrSetConfiguration_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrSetMode_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrSetTransceiverMode_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrSetupSymbolWindow_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlFrTransmit_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGenerateSyncPulse_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetApiLimitations_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetApplConfig_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetApplConfigList_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetChannelVersionInfo_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetDriverConfig2_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetDriverConfigEx_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetEttData_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetEventString_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetHwChannelDescription_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetHwSegmentDescription_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetKeymanBoxes_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetKeymanInfo_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetLicenseInfo_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetLicenseInfoEx_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetQueueNotifyMode_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetReceiveQueueLevel_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetRemoteDeviceCapabilities_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetRemoteDeviceInfo_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetRemoteDriverConfig_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetRemoteHwInfo_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetRemoteObjectIdentity_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGetToolAccessApplConfig_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGNSSGetBatteryState_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGNSSGetNavCfg_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGNSSGetNmeaCfg_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGNSSGetRcvCfg_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGNSSReceive_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGNSSSetNavCfg_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGNSSSetNmeaCfg_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlGNSSSetRcvCfg_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoConfigurePorts_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoResetCom_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoSetAckMode_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoSetActivationLine_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoSetAnalogOutput_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoSetCaptureTimeout_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoSetDigInThreshold_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoSetDigitalOutput_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoSetDigitalOutputWithHold_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoSetDigOutLevel_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoSetPwmOutput_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoSetTriggerMode_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlIoStartSampling_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlKlineFastInitTester_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlKlineInit5BdEcu_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlKlineInit5BdTester_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlKlineSetBaudrate_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlKlineSetCommunicationTimingEcu_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlKlineSetCommunicationTimingTester_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlKlineSetUartParams_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlKlineSwitchHighspeedMode_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlKlineSwitchTesterResistor_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlKlineTransmit_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlLinSendRequest_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlLinSetChannelParams_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlLinSetChecksum_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlLinSetDLC_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlLinSetSlave_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlLinSetSleepMode_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlLinSwitchSlave_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlLinWakeUp_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlLogGetMountPoint_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150AsyncConfigureBusload_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150AsyncGenerateBusload_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150AsyncTransmit_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150ConfigureRxBuffer_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150CtrlBusStatistic_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150CtrlConfigureBusload_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150CtrlGenerateBusload_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150CtrlSyncAudio_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150CtrlTransmit_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150EclConfigureSeq_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150EclGenerateSeq_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150EthernetTransmit_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150FilterEvent_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GenerateBypassStress_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GenerateLightError_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GenerateLockError_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetDeviceMode_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetDeviceState_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetECLInfo_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetFrequency_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetMPR_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetNPR_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetRxLightLockStatus_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetShutdownFlag_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetSPDIFMode_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetSpecialNodeInfo_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetSSOResult_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetSystemLockFlag_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150GetTxLight_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150Receive_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SetDeviceMode_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SetECLGlitchFilter_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SetECLLine_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SetECLTermination_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SetFrequency_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SetSPDIFMode_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SetSpecialNodeInfo_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SetSSOResult_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SetTxLight_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SetTxLightPower_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150Shutdown_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150Startup_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150StreamClearTxFifo_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150StreamClose_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150StreamGetInfo_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150StreamInitRxFifo_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150StreamOpen_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150StreamReceiveData_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150StreamStart_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150StreamStop_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150StreamTransmitData_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SwitchEventSources_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SwitchLed_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SyncGetAllocTable_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SyncGetMute_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SyncGetVolume_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SyncSetMute_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150SyncSetVolume_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMost150TwinklePowerLed_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostAsyncConfigureBusload_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostAsyncGenerateBusload_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostAsyncTransmit_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostCtrlConfigureBusload_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostCtrlGenerateBusload_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostCtrlRxBuffer_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostCtrlSyncAudio_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostCtrlSyncAudioEx_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostCtrlTransmit_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostGenerateLightError_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostGenerateLockError_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostGetAllBypass_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostGetFrequency_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostGetLockStatus_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostGetRxLight_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostGetTimingMode_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostGetTxLight_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostReadRegister_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostReceive_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostSetAllBypass_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostSetFrequency_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostSetLightPower_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostSetTimingMode_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostSetTxLight_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostStreamBufferAllocate_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostStreamBufferClearAll_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostStreamBufferDeallocateAll_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostStreamBufferSetNext_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostStreamClose_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostStreamGetInfo_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostStreamOpen_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostStreamStart_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostStreamStop_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostSwitchEventSources_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostSyncGetAllocTable_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostSyncGetMuteStatus_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostSyncGetVolumeStatus_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostSyncMute_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostSyncVolume_24(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostTwinklePowerLed_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostWriteRegister_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlMostWriteRegisterBit_28(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetActivateNetwork_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetAddVirtualPort_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetCloseNetwork_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetConnectMeasurementPoint_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetDeactivateNetwork_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetEthOpenNetwork_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetEthReceive_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetEthRequestChannelStatus_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetEthSend_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetFlushReceiveQueue_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetOpenVirtualPort_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetReleaseMACAddress_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetRequestMACAddress_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlNetSetNotification_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlOemContact_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlPopupHwConfig_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlPopupLogHwConfig_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlQueryETTs_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlReadCmActLicenseData_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlReadDebugFlagsEx_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlRegisterRemoteDevice_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlReleaseRemoteDeviceInfo_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlRemoteConfigureHostIf_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlRemoteGetApplConfigAutoAdjustment_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlRemoveRemoteDevice_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlRtcGetTimeDate_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlRtcSetTimeDate_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSentFlushTxQueue_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSentReceive_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSentSetConfig_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSentSetMode_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSentSetSupplyVoltage_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSentTransmit_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetApplConfigCount_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetApplicationInfo_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetApplicationTimeSync_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetDefaultBaudrateEx_36(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5,DWORD a6,DWORD a7,DWORD a8,DWORD a9) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetDeviceRegionCode_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetGlobalTimeSync_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetHwChannelDescription_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetHwSegmentDescription_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetNotificationHandle_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetTimerBasedNotify_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetTimerRate_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetTimerRateAndChannel_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetToolAccessApplConfig_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlSetToolAccessApplConfigCount_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlStatusReceive_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlTsCreateClock_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlTsDestroyClock_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlTsGetClkCfgStatString_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlTsGetClockIdString_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlTsGetCurrentTime_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlTsGetDomainTime_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlTsGetProtocolString_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlTsGetTimeScaleString_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlTsSetHwSyncClockConfiguration_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlUpdateDebugFlags_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlUpdateDebugFlagsEx_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlUpdateRemoteDeviceInfo_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlW11pGetConfig_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlW11pReceive_8(DWORD a1,DWORD a2) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlW11pRequestTemp_12(DWORD a1,DWORD a2,DWORD a3) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlW11pSetConfig_16(DWORD a1,DWORD a2,DWORD a3,DWORD a4) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlW11pTransmit_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlW11pUnlockTransmission_4(DWORD a1) { return 0; }
+__declspec(dllexport) long __stdcall XL_xlWriteCmActLicenseData_20(DWORD a1,DWORD a2,DWORD a3,DWORD a4,DWORD a5) { return 0; }

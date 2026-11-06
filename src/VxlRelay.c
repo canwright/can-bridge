@@ -232,7 +232,7 @@ typedef XLstatus (__stdcall *PF_xlOpenPort)(XLportHandle *, const char *,
 typedef XLstatus (__stdcall *PF_xlClosePort)(XLportHandle);
 typedef XLstatus (__stdcall *PF_xlCanSetChannelBitrate)(XLportHandle, XLaccess, unsigned int);
 typedef XLstatus (__stdcall *PF_xlActivateChannel)(XLportHandle, XLaccess, unsigned int, unsigned int);
-typedef XLstatus (__stdcall *PF_xlReceive)(XLportHandle, unsigned int *, unsigned int, XLevent *);
+typedef XLstatus (__stdcall *PF_xlReceive)(XLportHandle, unsigned int *, XLevent *);
 typedef XLstatus (__stdcall *PF_xlCanTransmit)(XLportHandle, XLaccess, unsigned int, void *);
 
 /* 桥的 VCI 导出 */
@@ -263,7 +263,7 @@ int main(int argc, char **argv)
     int vchan = (argc >= 2) ? atoi(argv[1]) : 2;
     unsigned int baud = (argc >= 3) ? (unsigned int)strtoul(argv[2], NULL, 10) : 500000u;
     DWORD devType = (argc >= 4) ? (DWORD)strtoul(argv[3], NULL, 10) : 21u;
-    int   testMode = (argc >= 5) ? atoi(argv[4]) : 0;
+    (void)argc;
 
     HMODULE hv = NULL, hb = NULL;
     PF_xlOpenDriver pOpen; PF_xlCloseDriver pClose; PF_xlGetDriverConfig pCfg;
@@ -461,21 +461,22 @@ int main(int argc, char **argv)
         XLevent ev[256];
         VCI_CAN_OBJ objs[256];
         DWORD lastStat = GetTickCount();
-        DWORD lastTest = GetTickCount();
-        unsigned txSeq = 0;
+
+
 
         for (;;) {
             unsigned int cnt = 0;
             XLstatus r;
 
             /* 虚拟通道 -> 硬件 */
-            cnt = 0;
-            r = pRx(port, &cnt, 20, ev);
+            cnt = 256;   /* 进来是"最多取多少"，出去是"实际取到多少" */
+            r = pRx(port, &cnt, ev);
             if (r == XL_SUCCESS && cnt > 0) {
                 unsigned int k, m = 0;
                 for (k = 0; k < cnt; k++) {
                     if (ev[k].tag != 1 /* XL_RECEIVE_MSG */) continue;
                     if (ev[k].tagData.msg.flags & XL_CAN_MSG_FLAG_ERROR_FRAME) { nErrSkip++; continue; }
+
                     ZeroMemory(&objs[m], sizeof(objs[m]));
                     objs[m].ID = ev[k].tagData.msg.id;
                     objs[m].DataLen = (BYTE)(ev[k].tagData.msg.dlc > 8 ? 8 : ev[k].tagData.msg.dlc);
@@ -519,22 +520,6 @@ int main(int argc, char **argv)
                 }
             }
 
-            if (testMode) {
-                DWORD n2 = GetTickCount();
-                if ((DWORD)(n2 - lastTest) >= 500) {
-                    XLevent t1; XLstatus tr;
-                    lastTest = n2;
-                    ZeroMemory(&t1, sizeof(t1));
-                    t1.tag = XL_TRANSMIT_MSG; t1.chanIndex = (BYTE)vchanIndex;
-                    t1.tagData.msg.id = 0x123; t1.tagData.msg.dlc = 8;
-                    t1.tagData.msg.data[0] = (BYTE)(txSeq & 0xFF);
-                    t1.tagData.msg.data[1] = (BYTE)((txSeq >> 8) & 0xFF);
-                    t1.tagData.msg.data[2] = 0xAA; t1.tagData.msg.data[3] = 0x55;
-                    tr = pTx(port, wantMask, 1, &t1);
-                    if (tr != XL_SUCCESS) RLog("\r  [测试发帧] rc=%lu\r\n", (unsigned long)tr);
-                    txSeq++;
-                }
-            }
             /* 每秒报一次数 */
             {
                 DWORD now = GetTickCount();
