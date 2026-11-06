@@ -1,0 +1,16 @@
+LIBRARY VciLogShim
+EXPORTS
+    VCI_OpenDevice
+    VCI_CloseDevice
+    VCI_InitCAN
+    VCI_StartCAN
+    VCI_ResetCAN
+    VCI_ClearBuffer
+    VCI_GetReceiveNum
+    VCI_Transmit
+    VCI_Receive
+    VCI_ReadBoardInfo
+    VCI_ReadErrInfo
+    VCI_ReadCANStatus
+    VCI_SetReference
+    VCI_GetReference
