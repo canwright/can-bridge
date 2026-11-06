@@ -690,7 +690,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-06-quietlog"
+#define UNIVCI_BUILD_TAG            "2026-11-06-apptry"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -2781,33 +2781,145 @@ __declspec(dllexport) DWORD __stdcall VCI_OpenDevice(DWORD DeviceType,
             }
 
             if (wantN > 1) {
-                XLportHandle phw = 0;
-                XLaccess pmw = wantMask;
-                XLstatus rw;
+                /*
+                 ★★ 应用名自动轮换 ★★
 
-                for (wc = 0; wc < g_xlCanN; wc++) {
-                    if (!(wantMask & g_xlCan[wc].mask)) continue;
-                    if (pXlSetAppl)
-                        pXlSetAppl(g_xlAppName, 0, g_xlCan[wc].hwType,
-                                   g_xlCan[wc].hwIndex, g_xlCan[wc].hwChannel,
-                                   XL_BUS_TYPE_CAN);
+                    Vector 是按【应用名】分配通道的。如果 CAN1/CAN2 在
+                    Vector Hardware Config 里挂在 CANape 名下，那么用
+                    "UniVciBridge" 这个名字申请，永远拿不到 —— 以前只能
+                    让用户去那个工具里改分配，或者手改 ini，很难受。
+
+                    现在自己试：哪个名字能拿到就用哪个，用户不用管。
+
+                    默认名字能拿到时，第一轮就成功，行为和以前完全一样。
+                    这个循环只在"默认名字拿不到"时才起作用。
+                 */
+                static const char *kAppTry[] = {
+                    "CANape", "CANoe", "VectorHardwareConfig", "CANalyser"
+                };
+                int ta;
+
+                for (ta = -1; ta < (int)(sizeof(kAppTry) / sizeof(kAppTry[0])) && !gotMulti; ta++) {
+                    const char *an = (ta < 0) ? g_xlAppName : kAppTry[ta];
+                    XLportHandle phw = 0;
+                    XLaccess pmw = wantMask;
+                    XLstatus rw;
+                    int dup = 0, tj;
+
+                    if (ta >= 0) {
+                        /* 和 ini 里写的一样就跳过，别白试 */
+                        for (tj = -1; tj < ta; tj++) {
+                            const char *prev = (tj < 0) ? g_xlAppName : kAppTry[tj];
+                            if (strcmp(prev, an) == 0) { dup = 1; break; }
+                        }
+                        if (dup) continue;
+                    }
+
+                    for (wc = 0; wc < g_xlCanN; wc++) {
+                        if (!(wantMask & g_xlCan[wc].mask)) continue;
+                        if (pXlSetAppl)
+                            pXlSetAppl(an, 0, g_xlCan[wc].hwType,
+                                       g_xlCan[wc].hwIndex, g_xlCan[wc].hwChannel,
+                                       XL_BUS_TYPE_CAN);
+                    }
+                    rw = pXlOpenPort(&phw, an, wantMask, &pmw, 8192,
+                                     XL_INTERFACE_VERSION_V3, XL_BUS_TYPE_CAN);
+                    LogF("  Vector 多路优先: app=\"%s\" mask=0x%I64X (%d 路) -> %lu port=%lu perm=0x%I64X",
+                         an, (unsigned long long)wantMask, wantN,
+                         (unsigned long)rw, (unsigned long)phw,
+                         (unsigned long long)pmw);
+
+                    if (rw == XL_SUCCESS && pmw != 0) {
+                        g_xlPort = phw;
+                        mask = pmw & wantMask;
+                        perm = mask;
+                        st = XL_SUCCESS;
+                        gotMulti = 1;
+                        if (ta >= 0) {
+                            LogF("  ★ 用应用名 \"%s\" 才拿到通道", an);
+                            LogF("    说明这些通道在 Vector Hardware Config 里分配给了它。");
+                            LogF("    想用默认名字的话，去那个工具里把通道改分配给 UniVciBridge；");
+                            LogF("    不改也能用 —— 桥以后一直用这个名字。");
+                            g_xlAppName = an;
+                        }
+                        LogF("  ★ 多路打开成功：mask=0x%I64X", (unsigned long long)mask);
+                    } else {
+                        if (pXlClosePort && phw) pXlClosePort(phw);
+                    }
                 }
-                rw = pXlOpenPort(&phw, g_xlAppName, wantMask, &pmw, 8192,
-                                 XL_INTERFACE_VERSION_V3, XL_BUS_TYPE_CAN);
-                LogF("  Vector 多路优先: xlOpenPort(mask=0x%I64X, %d 路) -> %lu port=%lu perm=0x%I64X",
-                     (unsigned long long)wantMask, wantN,
-                     (unsigned long)rw, (unsigned long)phw,
-                     (unsigned long long)pmw);
-                if (rw == XL_SUCCESS && pmw != 0) {
-                    g_xlPort = phw;
-                    mask = pmw & wantMask;
-                    perm = mask;
-                    st = XL_SUCCESS;
-                    gotMulti = 1;
-                    LogF("  ★ 多路打开成功：mask=0x%I64X", (unsigned long long)mask);
-                } else {
-                    if (pXlClosePort && phw) pXlClosePort(phw);
-                    LogF("    多路没拿到权限，改走单路重试");
+
+                if (!gotMulti) {
+                    LogF("    多路没拿到权限（试过 5 个应用名），改走单路重试");
+
+                    /*
+                     ★★ 第一组合失败后，在两两组合里再找一次 ★★
+
+                        场景（真机实测）：
+                            CAN1 / CAN2 被别的程序占着
+                            xlOpenPort(mask=0x3) -> perm=0x0
+                        而 Vector 不给"部分授权"——组合里只要有一路
+                        不可得，整个申请就失败。于是退回单路只能拿到 1 路，
+                        对外就只暴露 1 路。
+
+                        但 CAN3 + CAN4 往往是空的。挨个枚举两两组合，
+                        哪对能拿到就用哪对，能多凑出一路就是一路。
+
+                        顺序上仍然遵守那条铁律：组合必须是"还没占任何通道
+                        时"的第一次动作，所以这些尝试都在单路重试【之前】。
+                     */
+                    {
+                        int ai, bi;
+                        for (ai = 0; ai < g_xlCanN && !gotMulti; ai++) {
+                            XLaccess ma = g_xlCan[ai].mask;
+                            if (!(g_xlAvailMask & ma)) continue;
+                            for (bi = ai + 1; bi < g_xlCanN && !gotMulti; bi++) {
+                                XLaccess mb = g_xlCan[bi].mask;
+                                XLaccess pairOk = ma | mb;
+                                XLportHandle ph2 = 0;
+                                XLaccess pm2;
+                                XLstatus r2;
+
+                                if (!(g_xlAvailMask & mb)) continue;
+                                if (pairOk == wantMask) continue;   /* 上面试过了 */
+
+                                pm2 = pairOk;
+                                if (pXlSetAppl)
+                                    pXlSetAppl(g_xlAppName, 0,
+                                               g_xlCan[ai].hwType,
+                                               g_xlCan[ai].hwIndex,
+                                               g_xlCan[ai].hwChannel,
+                                               XL_BUS_TYPE_CAN);
+                                if (pXlSetAppl)
+                                    pXlSetAppl(g_xlAppName, 0,
+                                               g_xlCan[bi].hwType,
+                                               g_xlCan[bi].hwIndex,
+                                               g_xlCan[bi].hwChannel,
+                                               XL_BUS_TYPE_CAN);
+
+                                r2 = pXlOpenPort(&ph2, g_xlAppName, pairOk, &pm2, 8192,
+                                                 XL_INTERFACE_VERSION_V3, XL_BUS_TYPE_CAN);
+                                LogF("  Vector 组合试探: mask=0x%I64X（CAN%u+CAN%u）-> %lu perm=0x%I64X",
+                                     (unsigned long long)pairOk,
+                                     g_xlCan[ai].hwChannel + 1,
+                                     g_xlCan[bi].hwChannel + 1,
+                                     (unsigned long)r2, (unsigned long long)pm2);
+
+                                if (r2 == XL_SUCCESS && pm2 != 0) {
+                                    g_xlPort = ph2;
+                                    mask = pm2 & pairOk;
+                                    perm = mask;
+                                    st = XL_SUCCESS;
+                                    gotMulti = 1;
+                                    LogF("  ★ 组合打开成功：mask=0x%I64X"
+                                         "（前面的通道被占，用这 %d 路）",
+                                         (unsigned long long)mask,
+                                         (mask & ma) ? ((mask & mb) ? 2 : 1) : 1);
+                                } else {
+                                    if (pXlClosePort && ph2) pXlClosePort(ph2);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
