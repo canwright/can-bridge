@@ -690,7 +690,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-06-busoff"
+#define UNIVCI_BUILD_TAG            "2026-11-06-zlgquiet"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -4909,9 +4909,29 @@ __declspec(dllexport) DWORD __stdcall VCI_ReadErrInfo(DWORD DeviceType, DWORD De
          */
         int bs = (CANInd < VCI_MAX_CHANNEL) ? g_chipStateCh[CANInd] : 0;
         ZeroMemory(pErr, sizeof(*pErr));
+        /*
+         ★★ 只报"真故障"，不报轻微警告 —— 向周立功看齐 ★★
+
+            实测对比（用户测出来的）：
+                同一条总线、同样的拔插动作
+                用正版周立功 DLL → ZCANPRO 的错误帧计数不动
+                用我们的桥       → 攒到两万多
+
+            差别不在硬件，在【报不报】。原来这里连"错误警告"
+            （REC/TEC 只是偏高、总线仍在正常通信）也报成 ErrCode=1，
+            ZCANPRO 每次轮询就加一次，于是攒出一个吓人的数字。
+
+            周立功的 VCI_ERR_INFO 语义是"设备出了需要处理的故障"，
+            轻微警告不算。所以改成只报：
+                总线关闭 BUSOFF   → 3
+                错误被动         → 2
+                其余（含警告）    → 0
+
+            警告级别的信息没有丢：TEC / REC 仍然照实填在
+            Passive_ErrData 里，需要的人读得到。
+         */
         if (bs & XL_CHIPSTAT_BUSOFF)            pErr->ErrCode = 3;
         else if (bs & XL_CHIPSTAT_ERROR_PASSIVE) pErr->ErrCode = 2;
-        else if (bs & XL_CHIPSTAT_ERROR_WARNING) pErr->ErrCode = 1;
         else                                     pErr->ErrCode = 0;
         if (CANInd < VCI_MAX_CHANNEL) {
             pErr->Passive_ErrData[0] = (BYTE)g_tecCh[CANInd];
