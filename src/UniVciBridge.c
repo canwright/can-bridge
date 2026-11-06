@@ -690,7 +690,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-06-zlgquiet"
+#define UNIVCI_BUILD_TAG            "2026-11-06-quieterr"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -4025,9 +4025,28 @@ static void VxlRxPump(void)
                 abnormal = (bs & (XL_CHIPSTAT_BUSOFF |
                                   XL_CHIPSTAT_ERROR_PASSIVE |
                                   XL_CHIPSTAT_ERROR_WARNING)) != 0;
-                changed = (lb[ci] != (int)bs) ||
-                          (lt[ci] != (int)e[17]) ||
-                          (lr[ci] != (int)e[18]);
+                /*
+                 ★ 只在"跨档"时记，不逐帧记
+
+                    拔插 CAN 线时，悬空的那一路会不停拾取噪声，
+                    REC 一秒内从 0 涨到 108 再降回 0 —— 逐值记下来
+                    一次切换就是两百多行，把真正有用的信息淹掉。
+
+                    所以按"档"记：
+                        0           正常
+                        1  ~ 95     轻微
+                        96 ~ 127    警告
+                    REC 在同一档内变化不记，跨档才记。
+                 */
+                {
+                    int rOld = lr[ci], rNew = (int)e[18], o, n;
+                    o = (rOld <= 0) ? 0 : (rOld < 96 ? 1 : 2);
+                    n = (rNew <= 0) ? 0 : (rNew < 96 ? 1 : 2);
+                    changed = (lb[ci] != (int)bs) ||
+                              (lt[ci] != (int)e[17]) ||
+                              (o != n) ||
+                              (rOld < 0);
+                }
 
                 if (changed || (abnormal && (DWORD)(now - lk[ci]) >= 5000)) {
                     /*
