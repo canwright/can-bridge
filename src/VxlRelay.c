@@ -374,7 +374,8 @@ int main(int argc, char **argv)
             if (!StrContainsNoCase(c->name, "virtual") &&
                 !StrContainsNoCase(c->transceiverName, "virtual")) continue;
             seen2++;
-            if (seen2 < vchan) continue;          /* 从选定的那一路开始 */
+            /* 扫描全部虚拟通道，不再只从选定的那一路往后找 ——
+               否则前面那条空着的通道永远试不到 */
             tryMask[nTried] = c->channelMask;
             tryIdx[nTried]  = c->channelIndex;
             nTried++;
