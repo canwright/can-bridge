@@ -690,7 +690,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-06-quieterr"
+#define UNIVCI_BUILD_TAG            "2026-11-06-startonly"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -3690,12 +3690,29 @@ __declspec(dllexport) DWORD __stdcall VCI_InitCAN(DWORD DeviceType,
          3) 激活【本通道】。
            以前只在 CANInd==0 时激活且用整体 mask，多路时第二路永远激活不了。
         */
-        xs = pXlActivate(g_xlPort, cm, XL_BUS_TYPE_CAN,
-                         XL_ACTIVATE_RESET_CLOCK);
-        LogF("  Vector xlActivateChannel(ch=%lu mask=0x%I64X) -> %lu",
-             (unsigned long)CANInd, (unsigned long long)cm, (unsigned long)xs);
-        if (xs != XL_SUCCESS) { LeaveCriticalSection(&g_cs); return STATUS_ERR; }
-        g_started[CANInd] = 1;
+        /*
+         ★★ 这里【不】激活通道 —— 激活留给 VCI_StartCAN ★★
+
+            周立功的 VCI 语义：
+                InitCAN  = 配置（波特率、滤波）
+                StartCAN = 真正开始通信
+
+            我们原来在 InitCAN 里就 xlActivateChannel 了，后果是：
+            上位机只是"配置"了 2 路，第 2 路还没点【启动】，
+            控制器就已经在收帧了。那一路的线如果没接（或悬空），
+            它就一直在听噪声 —— REC 一路涨到 108，反复拔插更明显。
+
+            实测对比（用户测出来的）：同样的操作，正版周立功盒子没事，
+            用我们的桥就会刷错误 —— 差别就在"提前激活"。
+
+            所以改成和 ZLG 一致：InitCAN 只设波特率，StartCAN 才激活。
+            没点启动的通道 = 不听 = 不累积错误。
+         */
+        xs = XL_SUCCESS;
+        LogF("  Vector 通道 %lu 已配置（mask=0x%I64X），等 StartCAN 再激活",
+             (unsigned long)CANInd, (unsigned long long)cm);
+        (void)xs;
+        g_started[CANInd] = 0;
         LeaveCriticalSection(&g_cs);
         return STATUS_OK;
     }
@@ -3789,8 +3806,32 @@ __declspec(dllexport) DWORD __stdcall VCI_StartCAN(DWORD DeviceType, DWORD Devic
     case BE_KVASER: r = (g_kHandle >= 0 && pKBusOn) ?
                         (pKBusOn(g_kHandle) == 0 ? STATUS_OK : STATUS_ERR) : STATUS_ERR;
                     break;
-    case BE_VECTOR: r = (g_opened && g_xlPortOpen && g_started[CANInd]) ?
-                        STATUS_OK : STATUS_ERR;
+    case BE_VECTOR:
+                    /*
+                     ★ 通道激活【在这里】做，不在 InitCAN 里做 ★
+
+                        VCI 的语义：InitCAN=配置，StartCAN=开始通信。
+                        提前激活会让"没点启动"的通道也在听噪声，
+                        拔插时 REC 一路涨 —— 正版周立功不会有这现象。
+
+                        所以：InitCAN 只记下配置，这里才真正激活。
+                        已经激活过的（g_started=1）就不要重复激活。
+                     */
+                    if (!g_opened || !g_xlPortOpen) { r = STATUS_ERR; break; }
+                    if (g_started[CANInd]) { r = STATUS_OK; break; }
+                    if (pXlActivate && CANInd < (DWORD)g_xlUseN) {
+                        XLaccess am = g_xlUseMask[CANInd];
+                        XLstatus as = pXlActivate(g_xlPort, am, XL_BUS_TYPE_CAN,
+                                                  XL_ACTIVATE_RESET_CLOCK);
+                        LogF("  Vector xlActivateChannel(ch=%lu mask=0x%I64X) -> %lu",
+                             (unsigned long)CANInd, (unsigned long long)am, (unsigned long)as);
+                        if (as == XL_SUCCESS) { g_started[CANInd] = 1; r = STATUS_OK; }
+                        else r = STATUS_ERR;
+                    } else {
+                        LogF("  Vector 通道 %lu 不在对外暴露范围内，无法激活",
+                             (unsigned long)CANInd);
+                        r = STATUS_ERR;
+                    }
                     break;
     default:        if (g_vci.StartCAN)
                         r = g_vci.StartCAN(real, DeviceInd, CANInd);
