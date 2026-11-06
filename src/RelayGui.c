@@ -39,7 +39,8 @@ static const char *kBackendTxt[] = {
     "Kvaser（canlib32.dll）",
     "同星（libTSCAN.dll）"
 };
-static const char *kBaudTxt[] = { "125000", "250000", "500000", "1000000" };
+static const char *kBaudVal[] = { "100000", "125000", "250000", "500000", "800000", "1000000" };
+static const char *kBaudTxt[] = { "100K", "125K", "250K", "500K", "800K", "1M" };
 
 static void SelfPath(char *out, DWORD n)
 {
@@ -113,7 +114,7 @@ static int StartRelay(HWND hwnd)
     /* 型号：周立功用 21（2E-U），其它家由桥自己映射 */
     devType = (strcmp(kBackendVal[be], "vci") == 0) ? 21u : 21u;
 
-    sprintf(cmd, "\"%s\" %d %s %lu", exe, vc, kBaudTxt[bd], (unsigned long)devType);
+    sprintf(cmd, "\"%s\" %d %s %lu", exe, vc, kBaudVal[bd], (unsigned long)devType);
 
     ZeroMemory(&si, sizeof(si));
     si.cb = sizeof(si);
@@ -182,8 +183,8 @@ static LRESULT CALLBACK WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                                 16, 140, 140, 200, hwnd, (HMENU)IDC_BAUD, NULL, NULL);
         {
             int i; char b[32];
-            for (i = 0; i < 4; i++) { sprintf(b, "%s bps", kBaudTxt[i]); SendMessageA(g_hBaud, CB_ADDSTRING, 0, (LPARAM)b); }
-            SendMessageA(g_hBaud, CB_SETCURSEL, 2, 0);      /* 默认 500k */
+            for (i = 0; i < 6; i++) SendMessageA(g_hBaud, CB_ADDSTRING, 0, (LPARAM)kBaudTxt[i]);
+            SendMessageA(g_hBaud, CB_SETCURSEL, 3, 0);      /* 默认 500K */
         }
 
         CreateWindowA("BUTTON", "启动中继", WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,

@@ -46,11 +46,15 @@ static PF5p  pSetRef, pGetRef;
 static PF_tx pTx;
 static PF_rx pRx;
 
+static void EnsureCs(void)
+{
+    if (!g_csOk) { InitializeCriticalSection(&g_cs); g_csOk = 1; }
+}
+
 static void LogOpen(void)
 {
     char p[MAX_PATH];
     HMODULE hm = NULL;
-    if (!g_csOk) { InitializeCriticalSection(&g_cs); g_csOk = 1; }
     if (g_f) return;
     if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
                            GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
@@ -73,6 +77,7 @@ static void LogOpen(void)
 static void L(const char *fmt, ...)
 {
     va_list ap;
+    EnsureCs();
     EnterCriticalSection(&g_cs);
     LogOpen();
     if (g_f) {
@@ -88,6 +93,7 @@ static void L(const char *fmt, ...)
 static int Resolve(void)
 {
     if (g_h) return 1;
+    EnsureCs();
     EnterCriticalSection(&g_cs);
     if (!g_h) {
         g_h = LoadLibraryA("zlg.dll");

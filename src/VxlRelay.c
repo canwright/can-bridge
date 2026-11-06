@@ -70,6 +70,36 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
+
+static FILE *g_logf = NULL;
+static void RLog(const char *fmt, ...)
+{
+    va_list ap;
+    va_start(ap, fmt);
+    vprintf(fmt, ap);
+    va_end(ap);
+    if (!g_logf) {
+        char p[MAX_PATH];
+        HMODULE hm = NULL;
+        if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
+                               GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                               (LPCSTR)&RLog, &hm)) {
+            DWORD n = GetModuleFileNameA(hm, p, MAX_PATH - 32);
+            if (n > 0) {
+                char *q = strrchr(p, '\\');
+                if (q) { *q = 0; strcat(p, "\\VxlRelay.log"); }
+                g_logf = fopen(p, "a");
+            }
+        }
+    }
+    if (g_logf) {
+        va_start(ap, fmt);
+        vfprintf(g_logf, fmt, ap);
+        va_end(ap);
+        fflush(g_logf);
+    }
+}
 
 /* ──────────────────────────────────────────────────────────────
    Vector XL 结构和常量
@@ -252,12 +282,12 @@ int main(int argc, char **argv)
 
     unsigned long nToHw = 0, nToVxl = 0, nErrSkip = 0;
 
-    printf("============================================================\n");
-    printf("  VxlRelay - 真实 CAN 盒子 -> Vector 虚拟通道\n");
-    printf("============================================================\n\n");
-    printf("  虚拟通道    第 %d 个（CANape 应该占相邻的那一路）\n", vchan);
-    printf("  波特率      %u\n", baud);
-    printf("  硬件型号    %lu（由 UniVciBridge.ini 的 backend 决定用哪家）\n\n", (unsigned long)devType);
+    RLog("============================================================\n");
+    RLog("  VxlRelay - 真实 CAN 盒子 -> Vector 虚拟通道\n");
+    RLog("============================================================\n\n");
+    RLog("  虚拟通道    第 %d 个（CANape 应该占相邻的那一路）\n", vchan);
+    RLog("  波特率      %u\n", baud);
+    RLog("  硬件型号    %lu（由 UniVciBridge.ini 的 backend 决定用哪家）\n\n", (unsigned long)devType);
 
     SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 
@@ -270,8 +300,8 @@ int main(int argc, char **argv)
 
     /* ---- 加载 vxlapi.dll（32 位；系统目录里那份） ---- */
     hv = LoadLibraryA("vxlapi.dll");
-    if (!hv) { printf("[x] vxlapi.dll 加载失败 (%lu)\n", GetLastError()); return 1; }
-    printf("[ok] vxlapi.dll 已加载\n");
+    if (!hv) { RLog("[x] vxlapi.dll 加载失败 (%lu)\n", GetLastError()); return 1; }
+    RLog("[ok] vxlapi.dll 已加载\n");
 
     pOpen    = (PF_xlOpenDriver)      GetProcAddress(hv, "xlOpenDriver");
     pClose   = (PF_xlCloseDriver)     GetProcAddress(hv, "xlCloseDriver");
@@ -284,19 +314,19 @@ int main(int argc, char **argv)
     pRx      = (PF_xlReceive)         GetProcAddress(hv, "xlReceive");
     pTx      = (PF_xlCanTransmit)     GetProcAddress(hv, "xlCanTransmit");
     if (!pOpen || !pCfg || !pPort || !pRx || !pTx) {
-        printf("[x] vxlapi.dll 缺关键导出\n"); return 1;
+        RLog("[x] vxlapi.dll 缺关键导出\n"); return 1;
     }
 
-    if (pOpen() != XL_SUCCESS) { printf("[x] xlOpenDriver 失败\n"); return 1; }
+    if (pOpen() != XL_SUCCESS) { RLog("[x] xlOpenDriver 失败\n"); return 1; }
     ZeroMemory(&cfg, sizeof(cfg));
-    if (pCfg(&cfg) != XL_SUCCESS) { printf("[x] xlGetDriverConfig 失败\n"); return 1; }
+    if (pCfg(&cfg) != XL_SUCCESS) { RLog("[x] xlGetDriverConfig 失败\n"); return 1; }
 
-    printf("\n[..] 驱动报了 %lu 个通道：\n", (unsigned long)cfg.channelCount);
+    RLog("\n[..] 驱动报了 %lu 个通道：\n", (unsigned long)cfg.channelCount);
     for (i = 0; i < (int)cfg.channelCount && i < 64; i++) {
         XLchannelConfig *c = &cfg.channel[i];
         int virt = StrContainsNoCase(c->name, "virtual") ||
                    StrContainsNoCase(c->transceiverName, "virtual");
-        printf("       %2d \"%s\"%s mask=0x%I64X\n",
+        RLog("       %2d \"%s\"%s mask=0x%I64X\n",
                i, c->name, virt ? "  [虚拟]" : "",
                (unsigned long long)c->channelMask);
     }
@@ -313,14 +343,14 @@ int main(int argc, char **argv)
             if (seen == vchan) {
                 wantMask = c->channelMask;
                 vchanIndex = c->channelIndex;
-                printf("\n[ok] 选用虚拟通道第 %d 个：\"%s\" mask=0x%I64X chanIndex=%u\n",
+                RLog("\n[ok] 选用虚拟通道第 %d 个：\"%s\" mask=0x%I64X chanIndex=%u\n",
                        vchan, c->name, (unsigned long long)wantMask, vchanIndex);
                 found = 1;
                 break;
             }
         }
     }
-    if (!found) { printf("\n[x] 没有第 %d 个虚拟通道（驱动里只有 %d 个）\n", vchan, i); return 1; }
+    if (!found) { RLog("\n[x] 没有第 %d 个虚拟通道（驱动里只有 %d 个）\n", vchan, i); return 1; }
 
     /* ---- 打开端口（permissionMask 必须先填好，这是踩过的坑） ---- */
     if (pAppl) pAppl("UniVciRelay", 0, cfg.channel[vchanIndex].hwType,
@@ -330,17 +360,17 @@ int main(int argc, char **argv)
     {
         XLstatus r = pPort(&port, "UniVciRelay", wantMask, &perm, 8192,
                            XL_INTERFACE_VERSION_V3, XL_BUS_TYPE_CAN);
-        printf("[..] xlOpenPort -> %lu port=%lu perm=0x%I64X\n",
+        RLog("[..] xlOpenPort -> %lu port=%lu perm=0x%I64X\n",
                (unsigned long)r, (unsigned long)port, (unsigned long long)perm);
         if (r != XL_SUCCESS || perm == 0) {
-            printf("[x] 拿不到虚拟通道权限 —— 是不是 CANape 已经占了这一路？\n");
-            printf("    换一个 <虚拟通道序号> 再试（CANape 占一路，我们占相邻那路）\n");
+            RLog("[x] 拿不到虚拟通道权限 —— 是不是 CANape 已经占了这一路？\n");
+            RLog("    换一个 <虚拟通道序号> 再试（CANape 占一路，我们占相邻那路）\n");
             return 1;
         }
     }
-    if (pBitrate) printf("[..] xlCanSetChannelBitrate(%u) -> %lu\n",
+    if (pBitrate) RLog("[..] xlCanSetChannelBitrate(%u) -> %lu\n",
                          baud, (unsigned long)pBitrate(port, wantMask, baud));
-    if (pAct) printf("[..] xlActivateChannel -> %lu\n",
+    if (pAct) RLog("[..] xlActivateChannel -> %lu\n",
                      (unsigned long)pAct(port, wantMask, XL_BUS_TYPE_CAN, 0));
 
     /* ---- 加载桥，打开真实硬件 ---- */
@@ -353,8 +383,8 @@ int main(int argc, char **argv)
             hb = LoadLibraryA(dll);
         }
     }
-    if (!hb) { printf("[x] UniVciBridge.dll 加载失败（要放在本程序旁边）\n"); return 1; }
-    printf("[ok] 桥已加载\n");
+    if (!hb) { RLog("[x] UniVciBridge.dll 加载失败（要放在本程序旁边）\n"); return 1; }
+    RLog("[ok] 桥已加载\n");
 
     pVOpen  = (PF_VciOpen) GetProcAddress(hb, "VCI_OpenDevice");
     pVClose = (PF_VciClose)GetProcAddress(hb, "VCI_CloseDevice");
@@ -363,25 +393,25 @@ int main(int argc, char **argv)
     pVTx    = (PF_VciTx)   GetProcAddress(hb, "VCI_Transmit");
     pVRx    = (PF_VciRx)   GetProcAddress(hb, "VCI_Receive");
     if (!pVOpen || !pVInit || !pVStart || !pVTx || !pVRx) {
-        printf("[x] 桥缺导出\n"); return 1;
+        RLog("[x] 桥缺导出\n"); return 1;
     }
 
-    printf("\n[..] 打开硬件（型号 %lu）…\n", (unsigned long)devType);
-    if (pVOpen(devType, 0, 0) != 1) { printf("[x] VCI_OpenDevice 失败\n"); return 1; }
+    RLog("\n[..] 打开硬件（型号 %lu）…\n", (unsigned long)devType);
+    if (pVOpen(devType, 0, 0) != 1) { RLog("[x] VCI_OpenDevice 失败\n"); return 1; }
     {
         VCI_INIT_CONFIG_EU ic;
         ZeroMemory(&ic, sizeof(ic));
         ic.AccMask = 0xFFFFFFFFu;
         ic.Filter = 1;
         ic.Timing0 = 0x00; ic.Timing1 = 0x1C;      /* 500k */
-        printf("[..] VCI_InitCAN -> %lu\n", (unsigned long)pVInit(devType, 0, 0, &ic));
-        printf("[..] VCI_StartCAN -> %lu\n", (unsigned long)pVStart(devType, 0, 0));
+        RLog("[..] VCI_InitCAN -> %lu\n", (unsigned long)pVInit(devType, 0, 0, &ic));
+        RLog("[..] VCI_StartCAN -> %lu\n", (unsigned long)pVStart(devType, 0, 0));
     }
 
-    printf("\n============================================================\n");
-    printf("  中继已启动。Ctrl+C 结束。\n");
-    printf("  CANape 那边请选相邻的另一个虚拟通道。\n");
-    printf("============================================================\n\n");
+    RLog("\n============================================================\n");
+    RLog("  中继已启动。Ctrl+C 结束。\n");
+    RLog("  CANape 那边请选相邻的另一个虚拟通道。\n");
+    RLog("============================================================\n\n");
 
     /* ---- 主循环：双向搬帧 ---- */
     {
@@ -414,7 +444,7 @@ int main(int argc, char **argv)
                 }
                 if (m) {
                     DWORD sent = pVTx(devType, 0, 0, objs, m);
-                    nToHw += sent;
+                    if (sent <= m) nToHw += sent;   /* 返回值不合理就不计，避免计数爆掉 */
                 }
             }
 
@@ -447,7 +477,7 @@ int main(int argc, char **argv)
                 DWORD now = GetTickCount();
                 if ((DWORD)(now - lastStat) >= 1000) {
                     lastStat = now;
-                    printf("\r  虚拟->硬件 %lu 帧    硬件->虚拟 %lu 帧    丢掉错误帧 %lu 个   ",
+                    RLog("\r  虚拟->硬件 %lu 帧    硬件->虚拟 %lu 帧    丢掉错误帧 %lu 个   ",
                            nToHw, nToVxl, nErrSkip);
                     fflush(stdout);
                 }
