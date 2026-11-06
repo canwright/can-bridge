@@ -690,7 +690,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-06-apptry"
+#define UNIVCI_BUILD_TAG            "2026-11-06-errall"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -3893,6 +3893,24 @@ static int PcanPump(DWORD CANInd)
         TPCANTimestamp ts;
         ZeroMemory(&ts, sizeof(ts));
         if (pPcanRead((TPCANHandle)(g_pcanCh + CANInd), &m, &ts) != 0) break;
+        /*
+         ★ 错误帧 / 状态消息不能当数据交给上层
+
+            PCAN 的 MSGTYPE：
+                0x01 remote   0x02 extended
+                0x40 ERRFRAME 0x80 STATUS   ← 这两个必须丢
+
+            它们带着看起来正常的 id 和 data，交给上位机就会被当成
+            正常报文 —— 和 Vector 那边踩过的是同一个坑。
+         */
+        if (m.MSGTYPE & 0xC0) {
+            static unsigned long pcanErrN = 0;
+            pcanErrN++;
+            if (pcanErrN == 1 || (pcanErrN % 1000) == 0)
+                LogF("  ★ PCAN 错误帧/状态帧累计 %lu 个 —— 已丢弃，不交给上层",
+                     pcanErrN);
+            continue;
+        }
         {
             VCI_CAN_OBJ *o = &g_pcanRx[k][c];
             ZeroMemory(o, sizeof(*o));
@@ -4470,6 +4488,24 @@ __declspec(dllexport) DWORD __stdcall VCI_Receive(DWORD DeviceType, DWORD Device
                 /* ★ 顺序是 (hnd, id, msg, dlc, flag, time)
                    原来我把 flag 和 time 传反了 */
                 if (pKRead(g_kHandle, &id, data, &dlc, &fl, &ts) != 0) break;
+                /*
+                 ★ 错误帧 / 发送确认帧不能当数据
+
+                    canlib 的 flag（和 K_MSG_RTR/STD/EXT 同一套编号）：
+                        0x01 RTR  0x02 STD  0x04 EXT
+                        0x20 ERROR_FRAME  0x40 TXACK   ← 这两个必须丢
+
+                    TXACK 是"你自己发的那帧发出去了"的回显，
+                    ERROR_FRAME 是总线错误 —— 两者都不是接收数据。
+                 */
+                if (fl & 0x60) {
+                    static unsigned long kvErrN = 0;
+                    kvErrN++;
+                    if (kvErrN == 1 || (kvErrN % 1000) == 0)
+                        LogF("  ★ Kvaser 错误帧/TXACK 累计 %lu 个 —— 已丢弃，不交给上层",
+                             kvErrN);
+                    continue;
+                }
                 ZeroMemory(&pRecv[i], sizeof(VCI_CAN_OBJ));
                 pRecv[i].ID = (DWORD)id;
                 pRecv[i].DataLen = dlc > 8 ? 8 : (BYTE)dlc;
