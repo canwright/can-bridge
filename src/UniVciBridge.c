@@ -690,7 +690,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-06-errall"
+#define UNIVCI_BUILD_TAG            "2026-11-06-busoff"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -4007,6 +4007,8 @@ static void VxlRxPump(void)
             {
                 static int   lb[VCI_MAX_CHANNEL], lt[VCI_MAX_CHANNEL], lr[VCI_MAX_CHANNEL];
                 static DWORD lk[VCI_MAX_CHANNEL];
+                static DWORD rcLast[VCI_MAX_CHANNEL];   /* 上次自动恢复的时刻 */
+                static int   rcTry[VCI_MAX_CHANNEL];    /* 这一路恢复过几次 */
                 static int   inited = 0;
                 int ci = (csi >= 0 && csi < VCI_MAX_CHANNEL) ? csi : 0;
                 DWORD now = GetTickCount();
@@ -4016,6 +4018,7 @@ static void VxlRxPump(void)
                     int z;
                     for (z = 0; z < VCI_MAX_CHANNEL; z++) {
                         lb[z] = -1; lt[z] = -1; lr[z] = -1; lk[z] = 0;
+                        rcLast[z] = 0; rcTry[z] = 0;
                     }
                     inited = 1;
                 }
@@ -4027,12 +4030,58 @@ static void VxlRxPump(void)
                           (lr[ci] != (int)e[18]);
 
                 if (changed || (abnormal && (DWORD)(now - lk[ci]) >= 5000)) {
-                    LogF("  Vector 总线状态: busStatus=0x%X (%s) TEC=%u REC=%u",
-                         bs, st, (unsigned)e[17], (unsigned)e[18]);
+                    /*
+                     ★ 带上"对外第几路"，否则两路同时跑时根本分不清
+                       是哪一路在报错（排查时误判过一次）。
+                     */
+                    LogF("  Vector 总线状态[对外%d]: busStatus=0x%X (%s) TEC=%u REC=%u",
+                         ci, bs, st, (unsigned)e[17], (unsigned)e[18]);
                     lb[ci] = (int)bs;
                     lt[ci] = (int)e[17];
                     lr[ci] = (int)e[18];
                     lk[ci] = now;
+                }
+
+                /*
+                 ★★ 总线关闭（BUSOFF）自动恢复 ★★
+
+                    实测差距（用户测出来的）：
+                        正版周立功 DLL   —— 拔插 CAN 线不用重开软件
+                        我们的桥         —— 必须重开，否则那一路永远不回来
+
+                    原因：我们只在 VCI_InitCAN 时调过一次 xlActivateChannel，
+                    通道一旦进 BUSOFF 就没人再管它了。ZLG 的 DLL 直接控制
+                    自家硬件，驱动内部会重建通道。
+
+                    所以这里补上：看到 BUSOFF 就重建一次通道。
+                    限制：每路最多 5 次、间隔 3 秒 —— 总线上真有硬件短路时
+                    不至于无限重试把日志刷爆。
+                 */
+                if (!(bs & XL_CHIPSTAT_BUSOFF)) {
+                    rcTry[ci] = 0;          /* 恢复正常，计数器归零 */
+                } else if (pXlActivate && pXlDeactivate &&
+                           g_xlPortOpen && ci < g_xlUseN) {
+                    if (rcTry[ci] < 5 && (DWORD)(now - rcLast[ci]) >= 3000) {
+                        XLaccess rm = g_xlUseMask[ci];
+                        rcLast[ci] = now;
+                        rcTry[ci]++;
+                        LogF("  ★ 对外第 %d 路总线关闭，自动恢复第 %d 次（mask=0x%I64X）…",
+                             ci, rcTry[ci], (unsigned long long)rm);
+                        pXlDeactivate(g_xlPort, rm);
+                        Sleep(60);
+                        if (pXlActivate(g_xlPort, rm, XL_BUS_TYPE_CAN, 0) == XL_SUCCESS)
+                            LogF("    已重新激活 —— 不用重开软件了");
+                        else
+                            LogF("    重新激活失败 —— 检查 CAN 线 / 终端电阻 / 波特率");
+                    } else if (rcTry[ci] >= 5) {
+                        static int warned[VCI_MAX_CHANNEL];
+                        if (!warned[ci]) {
+                            warned[ci] = 1;
+                            LogF("    对外第 %d 路已恢复 %d 次仍不行，停止尝试 —— "
+                                 "这条总线有硬件问题（短路 / 没终端电阻 / 波特率不对）",
+                                 ci, rcTry[ci]);
+                        }
+                    }
                 }
             }
             continue;
