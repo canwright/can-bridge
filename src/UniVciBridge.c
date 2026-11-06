@@ -690,7 +690,7 @@ typedef struct {
    这个项目反复出现"测的是旧 DLL 却以为在测新版"，白排查好几轮 ——
    加这一行就是让这种事一眼可见。改功能时顺手改一下这个字符串。 */
 #ifndef UNIVCI_BUILD_TAG
-#define UNIVCI_BUILD_TAG            "2026-11-06-startonly"
+#define UNIVCI_BUILD_TAG            "2026-11-06-busoffonly"
 #endif
 
 #define XL_ACTIVATE_NONE            0
@@ -4990,9 +4990,23 @@ __declspec(dllexport) DWORD __stdcall VCI_ReadErrInfo(DWORD DeviceType, DWORD De
             警告级别的信息没有丢：TEC / REC 仍然照实填在
             Passive_ErrData 里，需要的人读得到。
          */
-        if (bs & XL_CHIPSTAT_BUSOFF)            pErr->ErrCode = 3;
-        else if (bs & XL_CHIPSTAT_ERROR_PASSIVE) pErr->ErrCode = 2;
-        else                                     pErr->ErrCode = 0;
+        /*
+         ★★ 最终形态：只报"总线关闭"，其余一律 0 ★★
+
+            和周立功实测对比的结论：
+              同一条总线、同样的操作，正版周立功的 ErrCode 一直是 0，
+              ZCANPRO 的错误帧计数纹丝不动；
+              我们只要报非零，ZCANPRO 就一直在加。
+
+            总线关闭（BUSOFF）是真故障 —— 控制器都退出总线了，必须报。
+            错误被动 / 警告都只是"计数偏高，通信还在进行"，
+            周立功不报，我们也不报。
+
+            TEC / REC 仍然照实填在 Passive_ErrData 里，
+            要看错误计数的人读得到，只是不再当成"故障"推给上位机。
+         */
+        if (bs & XL_CHIPSTAT_BUSOFF) pErr->ErrCode = 3;
+        else                         pErr->ErrCode = 0;
         if (CANInd < VCI_MAX_CHANNEL) {
             pErr->Passive_ErrData[0] = (BYTE)g_tecCh[CANInd];
             pErr->Passive_ErrData[1] = (BYTE)g_recCh[CANInd];
