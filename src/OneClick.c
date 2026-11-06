@@ -597,14 +597,45 @@ static void DoInstallAny(void)
         Log(L"  ✓ 已装为 %s", face);
 
         {
-            HANDLE hi = CreateFileW(ini, GENERIC_WRITE, 0, NULL,
-                                    CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-            if (hi != INVALID_HANDLE_VALUE) {
-                const char *cfg = "backend=auto\r\n";
-                DWORD w = 0;
-                WriteFile(hi, cfg, (DWORD)strlen(cfg), &w, NULL);
-                CloseHandle(hi);
-                Log(L"  ✓ 已写 UniVciBridge.ini（backend=auto）");
+            /*
+             ★★ ini 只在【不存在】时创建，绝不覆盖 ★★
+
+                以前这里用 CREATE_ALWAYS 写一行 backend=auto，后果是：
+                  · 重装一次就把用户自己的配置冲掉
+                    （channels / xl_channel / app_name 全没了）
+                  · channels=1 这种默认值永远进不去 ——
+                    而它恰恰是避免"空通道一直累计总线错误"的关键
+                    （实测：CAN1 收了 1246 帧，空着的 CAN2 错误计数 35718）
+
+                CREATE_NEW 是原子操作：文件已存在就失败，不会误覆盖。
+             */
+            if (!FileExists(ini)) {
+                HANDLE hi = CreateFileW(ini, GENERIC_WRITE, 0, NULL,
+                                        CREATE_NEW, FILE_ATTRIBUTE_NORMAL, NULL);
+                if (hi != INVALID_HANDLE_VALUE) {
+                    const char *cfg =
+                        "; UniVciBridge 配置（删掉本文件即恢复默认）\r\n"
+                        ";\r\n"
+                        "; 后端：auto=自动探测 / vector / pcan / gcan / kvaser / tosun / vci / zlg\r\n"
+                        "backend=auto\r\n"
+                        "\r\n"
+                        "; 对外暴露几路（默认 1）。\r\n"
+                        "; 改成 2 时，两路都要接节点 —— 空着的那一路没有节点应答、\r\n"
+                        "; 线又是悬空的，会一直累计总线错误，界面上看着像出了大问题。\r\n"
+                        "channels=1\r\n"
+                        "\r\n"
+                        "; 只用 Vector 第几路（1 起）。不写 = 自动挑能拿到权限的那路。\r\n"
+                        "; xl_channel=1\r\n"
+                        "\r\n"
+                        "; Vector 应用名。两个上位机同时用一块盒子时必填，且必须不同。\r\n"
+                        "; app_name=ZCANPRO\r\n";
+                    DWORD w = 0;
+                    WriteFile(hi, cfg, (DWORD)strlen(cfg), &w, NULL);
+                    CloseHandle(hi);
+                    Log(L"  ✓ 已创建 UniVciBridge.ini（backend=auto, channels=1）");
+                }
+            } else {
+                Log(L"  · 已有 UniVciBridge.ini，保留不动");
             }
         }
 
