@@ -374,21 +374,20 @@ int main(int argc, char **argv)
             if (!StrContainsNoCase(c->name, "virtual") &&
                 !StrContainsNoCase(c->transceiverName, "virtual")) continue;
             seen2++;
-            /* 扫描全部虚拟通道，不再只从选定的那一路往后找 ——
-               否则前面那条空着的通道永远试不到 */
-            tryMask[nTried] = c->channelMask;
-            tryIdx[nTried]  = c->channelIndex;
-            nTried++;
+            /* 先试【选定的那一路】，再试其它的 —— 这样能避开被别的应用占满的通道 */
+            /* 选定的那一路插到最前面，其余按顺序跟在后面 */
+            if (seen2 == vchan) { memmove(&tryMask[1], &tryMask[0], sizeof(XLaccess)*nTried);
+                                  memmove(&tryIdx[1],  &tryIdx[0],  sizeof(int)*nTried);
+                                  tryMask[0] = c->channelMask; tryIdx[0] = c->channelIndex; nTried++; }
+            else { tryMask[nTried] = c->channelMask; tryIdx[nTried] = c->channelIndex; nTried++; }
             if (nTried >= 16) break;
         }
         for (k = 0; k < nTried; k++) {
             XLaccess pm = tryMask[k];
             XLstatus rr;
-            if (pAppl) pAppl("UniVciRelay", 0,
-                             cfg.channel[tryIdx[k]].hwType,
-                             cfg.channel[tryIdx[k]].hwIndex,
-                             cfg.channel[tryIdx[k]].hwChannel,
-                             XL_BUS_TYPE_CAN);
+            /* ★ 不能在这里改应用分配：会把 app 绑到"选中的那一路"，
+               而我们实际打开的是 k 那一号通道 —— 绑错了就永远收不到帧。
+               用全局通道索引（mask）打开，不需要分配。 */
             port = 0;
             rr = pPort(&port, "UniVciRelay", tryMask[k], &pm, 8192,
                        XL_INTERFACE_VERSION_V3, XL_BUS_TYPE_CAN);
@@ -471,6 +470,13 @@ int main(int argc, char **argv)
             /* 虚拟通道 -> 硬件 */
             cnt = 256;   /* 进来是"最多取多少"，出去是"实际取到多少" */
             r = pRx(port, &cnt, ev);
+            { static int dbgN = 0;
+              if (dbgN < 6 && (cnt > 0 || r != 0)) {
+                  RLog("[RXDBG] r=%ld cnt=%u", (long)r, cnt);
+                  if (cnt > 0) RLog("[RXDBG] tag0=%u id0=0x%lX dlc0=%u",
+                                    ev[0].tag, (unsigned long)ev[0].tagData.msg.id, ev[0].tagData.msg.dlc);
+                  dbgN++;
+              } }
             if (r == XL_SUCCESS && cnt > 0) {
                 unsigned int k, m = 0;
                 for (k = 0; k < cnt; k++) {
