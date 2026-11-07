@@ -1,49 +1,10 @@
-# 鈹€鈹€ 鏋勫缓浜х墿 鈹€鈹€
-out/
+# ???????
+src/out/
+tests/out/
 *.obj
 *.exp
-*.lib
 *.pdb
 *.ilk
-*.dll
-*.exe
-
-# 鈹€鈹€ 杩愯浜х墿 鈹€鈹€
-*.log
-*.txt.bak
-*.replaced
-*.zlg.bak
-*.canbridge.bak
-
-# 鈹€鈹€ 鍘傚晢 DLL / 椹卞姩瀹夎鍖咃細缁濅笉鍙叆搴?鈹€鈹€
-# 锛堝悇鏈?EULA锛屼笉鍏佽鍐嶅垎鍙戯級
-drivers/
-drivers_setup/
-ControlCAN.dll
-ControlCAN1.dll
-ECanVci.dll
-CHUSBDLL.dll
-canlib32.dll
-PCANBasic.dll
-vxlapi.dll
-zlgcan.dll
-USBCAN*.dll
-TSMaster.dll
-libTSCAN.dll
-
-# 鈹€鈹€ 鍘傚晢鏂囨。锛氬彈鐗堟潈淇濇姢锛屽彧鏀鹃摼鎺?鈹€鈹€
-*.pdf
-_dl/
-
-# 鈹€鈹€ 绯荤粺 鈹€鈹€
-Thumbs.db
-desktop.ini
-.vs/
-*.user
-*.suo
-
-# ── 凭据临时文件（绝不可入库）──
-ghcred_*
-*ghcred*
-Users*tempghcred*
-.git-credentials
+__pycache__/
+build/
+dist/
